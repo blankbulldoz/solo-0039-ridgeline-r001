@@ -1,0 +1,67 @@
+{
+  "language": "Go",
+  "project_shape": "backend",
+  "source_extensions": [
+    ".go"
+  ],
+  "testing": "deferred",
+  "build_command": "go build ./...",
+  "workflow_checks": [
+    {
+      "workflow_id": "namespace",
+      "command": "python3 examples/walkthrough.py --workflow namespace"
+    },
+    {
+      "workflow_id": "ingest",
+      "command": "python3 examples/walkthrough.py --workflow ingest"
+    },
+    {
+      "workflow_id": "discovery",
+      "command": "python3 examples/walkthrough.py --workflow discovery"
+    },
+    {
+      "workflow_id": "range",
+      "command": "python3 examples/walkthrough.py --workflow range"
+    },
+    {
+      "workflow_id": "windows",
+      "command": "python3 examples/walkthrough.py --workflow windows"
+    },
+    {
+      "workflow_id": "counters",
+      "command": "python3 examples/walkthrough.py --workflow counters"
+    },
+    {
+      "workflow_id": "seal",
+      "command": "python3 examples/walkthrough.py --workflow seal"
+    },
+    {
+      "workflow_id": "delete",
+      "command": "python3 examples/walkthrough.py --workflow delete"
+    },
+    {
+      "workflow_id": "retention",
+      "command": "python3 examples/walkthrough.py --workflow retention"
+    },
+    {
+      "workflow_id": "materialize",
+      "command": "python3 examples/walkthrough.py --workflow materialize"
+    },
+    {
+      "workflow_id": "freshness",
+      "command": "python3 examples/walkthrough.py --workflow freshness"
+    },
+    {
+      "workflow_id": "compact",
+      "command": "python3 examples/walkthrough.py --workflow compact"
+    },
+    {
+      "workflow_id": "backup",
+      "command": "python3 examples/walkthrough.py --workflow backup"
+    },
+    {
+      "workflow_id": "explain",
+      "command": "python3 examples/walkthrough.py --workflow explain"
+    }
+  ]
+}

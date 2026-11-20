@@ -1,0 +1,23 @@
+{
+  "namespace": {
+    "name": "spindle",
+    "retention_ms": 10000,
+    "lateness_ms": 30000,
+    "future_ms": 1000,
+    "max_series": 100,
+    "max_write": 10000,
+    "max_scan": 100000
+  },
+  "now": 10000,
+  "points": [
+    {"labels":{"__name__":"pulse_total","node":"ridge-a","zone":"east"},"time":-1500,"value":10},
+    {"labels":{"__name__":"pulse_total","node":"ridge-a","zone":"east"},"time":-500,"value":14},
+    {"labels":{"__name__":"pulse_total","node":"ridge-a","zone":"east"},"time":500,"value":2},
+    {"labels":{"__name__":"pulse_total","node":"ridge-a","zone":"east"},"time":1500,"value":6},
+    {"labels":{"__name__":"pulse_total","node":"ridge-b","zone":"east"},"time":-1500,"value":3},
+    {"labels":{"__name__":"pulse_total","node":"ridge-b","zone":"east"},"time":500,"value":7},
+    {"labels":{"__name__":"load_ratio","node":"ridge-a","zone":"east","rack":""},"time":-500,"value":0.25},
+    {"labels":{"__name__":"load_ratio","node":"ridge-a","zone":"east","rack":""},"time":500,"value":0.75},
+    {"labels":{"__name__":"load_ratio","node":"ridge-b","zone":"west"},"time":500,"value":0.5}
+  ]
+}

@@ -1,0 +1,5717 @@
+{
+  "task_source_schema_version": 1,
+  "cc_feedback_profile": "cc-feedback-2611",
+  "project_domain": "基础设施",
+  "project_subdirection": "数据库",
+  "supported_task_types": [
+    "功能开发",
+    "Bugfix",
+    "功能优化",
+    "代码重构",
+    "依赖升级与迁移",
+    "质量保障",
+    "项目维护",
+    "技术讨论",
+    "问题排查与诊断",
+    "部署运维",
+    "泛Agent需求"
+  ],
+  "type_coverage": {
+    "功能开发": {
+      "status": "supported",
+      "reason": "Existing time-series inputs, source merging and temporal reducers expose domain-specific extension boundaries.",
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/engine/ingest.go",
+        "examples/session.json"
+      ]
+    },
+    "功能优化": {
+      "status": "supported",
+      "reason": "Atomic ingestion, grouped windows, counter rates and maintenance are complete usable flows with meaningful behavior evolution.",
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/engine/ingest.go",
+        "examples/session.json"
+      ]
+    },
+    "代码重构": {
+      "status": "supported",
+      "reason": "The engine owns source iteration and transaction coordination; representation boundaries can change while preserving persisted sample semantics.",
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/engine/ingest.go",
+        "examples/session.json"
+      ]
+    },
+    "依赖升级与迁移": {
+      "status": "supported",
+      "reason": "Actual format-1 JSON gzip blocks and bbolt storage provide concrete source representations; Go binary encoding and SQLite are explicit migration targets.",
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/engine/ingest.go",
+        "examples/session.json"
+      ]
+    },
+    "质量保障": {
+      "status": "supported",
+      "reason": "Public API, recorded measurements and image restore permit independent numerical and stateful verification.",
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/engine/ingest.go",
+        "examples/session.json"
+      ]
+    },
+    "项目维护": {
+      "status": "supported",
+      "reason": "Retention, deletion, read-only transitions, images and format version require state-dependent database maintenance procedures.",
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/engine/ingest.go",
+        "examples/session.json"
+      ]
+    },
+    "技术讨论": {
+      "status": "supported",
+      "reason": "Physical block layout, temporal query semantics and transaction costs support repository-specific technical decisions.",
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/engine/ingest.go",
+        "examples/session.json"
+      ]
+    },
+    "问题排查与诊断": {
+      "status": "supported",
+      "reason": "examples/session.json contains genuine observable stale materializations, negative windows, physical/logical differences and admission rejections to explain.",
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/engine/ingest.go",
+        "examples/session.json"
+      ]
+    },
+    "部署运维": {
+      "status": "supported",
+      "reason": "A runnable service, file locking, graceful shutdown and verified image reopening support isolated operational drills.",
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/engine/ingest.go",
+        "examples/session.json"
+      ]
+    },
+    "泛Agent需求": {
+      "status": "supported",
+      "reason": "Original measurements and recorded requests, block inventories, retention floors and backup receipts can be joined by series identity, time and sequence.",
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/engine/ingest.go",
+        "examples/session.json"
+      ]
+    },
+    "Bugfix": {
+      "status": "supported",
+      "reason": "The healthy baseline supports isolated Bugfix tasks against its existing database contracts. No defect is present in this baseline.",
+      "source_anchors": [
+        "internal/volume/backup.go",
+        "internal/wire/image.go"
+      ]
+    }
+  },
+  "prompt_contract": {
+    "schema_version": 1,
+    "mode": "integrated",
+    "baseline_tier": "deep-task-ready",
+    "generation_scope": {
+      "mode": "all_supported"
+    },
+    "minimum_active_prompts": {
+      "功能开发": 20,
+      "功能优化": 20,
+      "代码重构": 2,
+      "依赖升级与迁移": 2,
+      "质量保障": 2,
+      "项目维护": 2,
+      "技术讨论": 2,
+      "问题排查与诊断": 2,
+      "部署运维": 2,
+      "泛Agent需求": 10
+    },
+    "minimum_anchors": {
+      "功能开发": 25,
+      "功能优化": 25,
+      "代码重构": 15,
+      "依赖升级与迁移": 15,
+      "质量保障": 15,
+      "项目维护": 15,
+      "技术讨论": 15,
+      "问题排查与诊断": 15,
+      "部署运维": 15,
+      "泛Agent需求": 15
+    },
+    "capacity_floor": {
+      "modules": 8,
+      "workflows": 10,
+      "mechanisms": 8,
+      "entities": 8,
+      "state_machines": 5,
+      "extension_seams": 12,
+      "tension_points": 10
+    }
+  },
+  "entities": [
+    {
+      "id": "namespace",
+      "label": "Namespace policy",
+      "relations": [
+        "series belongs to namespace"
+      ],
+      "invariants": [
+        "name unique",
+        "floor never decreases"
+      ]
+    },
+    {
+      "id": "series",
+      "label": "Canonical series",
+      "relations": [
+        "sample belongs to series"
+      ],
+      "invariants": [
+        "label identity deterministic"
+      ]
+    },
+    {
+      "id": "sample",
+      "label": "Timestamped sample",
+      "relations": [
+        "sample may be in head or block"
+      ],
+      "invariants": [
+        "one visible value per series and timestamp"
+      ]
+    },
+    {
+      "id": "block",
+      "label": "Compressed time block",
+      "relations": [
+        "block contains samples"
+      ],
+      "invariants": [
+        "checksum and count verified"
+      ]
+    },
+    {
+      "id": "tombstone",
+      "label": "Deletion interval",
+      "relations": [
+        "deletion targets committed series"
+      ],
+      "invariants": [
+        "only hides prior committed measurements"
+      ]
+    },
+    {
+      "id": "retention",
+      "label": "Irreversible retention floor",
+      "relations": [
+        "namespace owns floor"
+      ],
+      "invariants": [
+        "old measurements cannot resurrect"
+      ]
+    },
+    {
+      "id": "window",
+      "label": "Aggregation cell",
+      "relations": [
+        "cell derives from selected samples"
+      ],
+      "invariants": [
+        "half-open origin-aligned bounds"
+      ]
+    },
+    {
+      "id": "counter",
+      "label": "Counter stream",
+      "relations": [
+        "rate uses ordered samples"
+      ],
+      "invariants": [
+        "resets handled before cross-series reduction"
+      ]
+    },
+    {
+      "id": "rollup",
+      "label": "Materialized aggregate",
+      "relations": [
+        "rollup binds query and source sequence"
+      ],
+      "invariants": [
+        "stale output explicitly identified"
+      ]
+    },
+    {
+      "id": "image",
+      "label": "Database image",
+      "relations": [
+        "image contains every namespace"
+      ],
+      "invariants": [
+        "advertised digest matches bytes"
+      ]
+    },
+    {
+      "id": "plan",
+      "label": "Physical scan plan",
+      "relations": [
+        "plan selects series and blocks"
+      ],
+      "invariants": [
+        "candidates do not imply visible rows"
+      ]
+    },
+    {
+      "id": "volume",
+      "label": "Transactional volume",
+      "relations": [
+        "owns namespaces and global sequence"
+      ],
+      "invariants": [
+        "one process owns file"
+      ]
+    },
+    {
+      "id": "labelset",
+      "label": "Series labels",
+      "relations": [
+        "labels define series identity"
+      ],
+      "invariants": [
+        "missing and explicit empty labels remain distinct"
+      ]
+    },
+    {
+      "id": "request",
+      "label": "Bounded public request",
+      "relations": [
+        "request determines atomic operation"
+      ],
+      "invariants": [
+        "rejected operation publishes no partial change"
+      ]
+    }
+  ],
+  "state_machines": [
+    {
+      "subject": "namespace",
+      "states": [
+        "writable",
+        "read_only"
+      ],
+      "transitions": [
+        "writable->read_only",
+        "read_only->writable"
+      ],
+      "invariants": [
+        "readers remain supported"
+      ]
+    },
+    {
+      "subject": "sample",
+      "states": [
+        "head",
+        "sealed",
+        "hidden",
+        "replaced"
+      ],
+      "transitions": [
+        "head->sealed",
+        "sealed->hidden",
+        "head->replaced",
+        "sealed->replaced"
+      ],
+      "invariants": [
+        "only newest non-hidden sample is visible"
+      ]
+    },
+    {
+      "subject": "block",
+      "states": [
+        "encoded",
+        "verified",
+        "published",
+        "replaced"
+      ],
+      "transitions": [
+        "encoded->published",
+        "published->verified",
+        "published->replaced"
+      ],
+      "invariants": [
+        "publication and head removal atomic"
+      ]
+    },
+    {
+      "subject": "retention",
+      "states": [
+        "initial_floor",
+        "advanced_floor"
+      ],
+      "transitions": [
+        "initial_floor->advanced_floor",
+        "advanced_floor->advanced_floor"
+      ],
+      "invariants": [
+        "floor never decreases"
+      ]
+    },
+    {
+      "subject": "rollup",
+      "states": [
+        "absent",
+        "fresh",
+        "stale"
+      ],
+      "transitions": [
+        "absent->fresh",
+        "fresh->stale",
+        "stale->fresh"
+      ],
+      "invariants": [
+        "no silent fresh claim after source changes"
+      ]
+    },
+    {
+      "subject": "image",
+      "states": [
+        "snapshot",
+        "exported",
+        "verified",
+        "reopened"
+      ],
+      "transitions": [
+        "snapshot->exported",
+        "exported->verified",
+        "verified->reopened"
+      ],
+      "invariants": [
+        "digest and sequence are bound to the same bytes"
+      ]
+    }
+  ],
+  "capability_families": [
+    {
+      "family": "write",
+      "occupied_by": [
+        "sample"
+      ],
+      "available": true
+    },
+    {
+      "family": "scan",
+      "occupied_by": [
+        "series"
+      ],
+      "available": true
+    },
+    {
+      "family": "windows",
+      "occupied_by": [
+        "window"
+      ],
+      "available": true
+    },
+    {
+      "family": "rate",
+      "occupied_by": [
+        "counter"
+      ],
+      "available": true
+    },
+    {
+      "family": "blocks",
+      "occupied_by": [
+        "block"
+      ],
+      "available": true
+    },
+    {
+      "family": "delete",
+      "occupied_by": [
+        "tombstone"
+      ],
+      "available": true
+    },
+    {
+      "family": "retention",
+      "occupied_by": [
+        "retention"
+      ],
+      "available": true
+    },
+    {
+      "family": "rollup",
+      "occupied_by": [
+        "rollup"
+      ],
+      "available": true
+    },
+    {
+      "family": "backup",
+      "occupied_by": [
+        "image"
+      ],
+      "available": true
+    },
+    {
+      "family": "labels",
+      "occupied_by": [
+        "labelset"
+      ],
+      "available": true
+    },
+    {
+      "family": "namespace",
+      "occupied_by": [
+        "namespace"
+      ],
+      "available": true
+    },
+    {
+      "family": "plan",
+      "occupied_by": [
+        "plan"
+      ],
+      "available": true
+    },
+    {
+      "family": "transport",
+      "occupied_by": [
+        "request"
+      ],
+      "available": true
+    },
+    {
+      "family": "volume",
+      "occupied_by": [
+        "volume"
+      ],
+      "available": true
+    }
+  ],
+  "extension_seams": [
+    {
+      "id": "write",
+      "anchor": "internal/engine/ingest.go",
+      "entry": "Write",
+      "distinct_outcome": "Timestamp corrections resolve by commit sequence",
+      "mechanism": "batch_transaction"
+    },
+    {
+      "id": "scan",
+      "anchor": "internal/engine/scan.go",
+      "entry": "scan",
+      "distinct_outcome": "Visible points resolve physical duplicates and selectors",
+      "mechanism": "snapshot_consistency"
+    },
+    {
+      "id": "windows",
+      "anchor": "internal/window/reduce.go",
+      "entry": "Aggregate",
+      "distinct_outcome": "Group windows preserve observation weighting and half-open bounds",
+      "mechanism": "time_semantics"
+    },
+    {
+      "id": "rate",
+      "anchor": "internal/window/rate.go",
+      "entry": "Rates",
+      "distinct_outcome": "Counter changes are resolved per series before grouping",
+      "mechanism": "time_semantics"
+    },
+    {
+      "id": "blocks",
+      "anchor": "internal/chunk/codec.go",
+      "entry": "Decode",
+      "distinct_outcome": "Physical changes preserve sample sequence and logical values",
+      "mechanism": "resource_lifecycle"
+    },
+    {
+      "id": "delete",
+      "anchor": "internal/engine/delete.go",
+      "entry": "Delete",
+      "distinct_outcome": "Later corrections are not hidden by older deletion sequences",
+      "mechanism": "delete_removal"
+    },
+    {
+      "id": "retention",
+      "anchor": "internal/policy/admit.go",
+      "entry": "RetentionFloor",
+      "distinct_outcome": "Expired timestamps cannot be reintroduced",
+      "mechanism": "policy_rules"
+    },
+    {
+      "id": "rollup",
+      "anchor": "internal/engine/rollup.go",
+      "entry": "Materialize",
+      "distinct_outcome": "Stored aggregate is paired with its namespace source sequence",
+      "mechanism": "lineage"
+    },
+    {
+      "id": "backup",
+      "anchor": "internal/volume/backup.go",
+      "entry": "Snapshot",
+      "distinct_outcome": "Restored image represents the advertised committed database state",
+      "mechanism": "export_freeze"
+    },
+    {
+      "id": "labels",
+      "anchor": "internal/model/validate.go",
+      "entry": "SeriesID",
+      "distinct_outcome": "Presence differs in identity while absent values compare as empty",
+      "mechanism": "policy_rules"
+    },
+    {
+      "id": "namespace",
+      "anchor": "internal/engine/engine.go",
+      "entry": "ReadOnly",
+      "distinct_outcome": "Read-only state changes admission without destroying readable data",
+      "mechanism": "state_machine"
+    },
+    {
+      "id": "plan",
+      "anchor": "internal/engine/query.go",
+      "entry": "Explain",
+      "distinct_outcome": "Physical work and logical result cardinality remain distinguishable",
+      "mechanism": "capacity"
+    },
+    {
+      "id": "transport",
+      "anchor": "internal/wire/json.go",
+      "entry": "decode",
+      "distinct_outcome": "Failure codes and bounded input prevent partial publication",
+      "mechanism": "error_propagation"
+    },
+    {
+      "id": "volume",
+      "anchor": "internal/volume/db.go",
+      "entry": "Open",
+      "distinct_outcome": "Signed temporal keys and storage commits agree across restart",
+      "mechanism": "recovery_rollback"
+    }
+  ],
+  "tension_points": [
+    {
+      "workflow_id": "namespace",
+      "description": "Policy changes have a source sequence and alter write eligibility",
+      "observable_failure": "Read-only transition preserves readers and rejects ingestion would no longer hold"
+    },
+    {
+      "workflow_id": "ingest",
+      "description": "Timestamp and commit order differ while admission uses the preceding watermark",
+      "observable_failure": "Newest committed value wins per timestamp would no longer hold"
+    },
+    {
+      "workflow_id": "discovery",
+      "description": "Missing labels compare as empty but remain distinct identities",
+      "observable_failure": "Canonical identity preserves absent versus present-empty labels would no longer hold"
+    },
+    {
+      "workflow_id": "range",
+      "description": "Physical duplicates and tombstones must not become duplicate logical points",
+      "observable_failure": "Head and blocks expose one newest visible point per series-time would no longer hold"
+    },
+    {
+      "workflow_id": "windows",
+      "description": "Group membership and observation weighting jointly determine window values",
+      "observable_failure": "Negative timestamps land in the preceding bucket would no longer hold"
+    },
+    {
+      "workflow_id": "counters",
+      "description": "Per-series resets must be resolved before summing rates across a group",
+      "observable_failure": "Reset increments and observed elapsed time determine group rate would no longer hold"
+    },
+    {
+      "workflow_id": "seal",
+      "description": "Checksummed payload and head removal must publish atomically",
+      "observable_failure": "Logical samples remain identical after physical movement would no longer hold"
+    },
+    {
+      "workflow_id": "delete",
+      "description": "Deletion stores matched series at commit rather than changing future series",
+      "observable_failure": "Deletion hides old samples but later corrections can appear would no longer hold"
+    },
+    {
+      "workflow_id": "retention",
+      "description": "An irreversible floor differs from revisable deletion visibility",
+      "observable_failure": "Expired timestamps cannot return after compaction would no longer hold"
+    },
+    {
+      "workflow_id": "materialize",
+      "description": "Materialization publication must not invalidate itself",
+      "observable_failure": "Result and source-sequence provenance share one transaction would no longer hold"
+    },
+    {
+      "workflow_id": "freshness",
+      "description": "Namespace mutation and global sequence are distinct freshness facts",
+      "observable_failure": "Changed namespace is reported stale without rewriting old output would no longer hold"
+    },
+    {
+      "workflow_id": "compact",
+      "description": "Logical reclamation and database file allocation are different observations",
+      "observable_failure": "Rewritten blocks preserve correction sequences would no longer hold"
+    },
+    {
+      "workflow_id": "backup",
+      "description": "Image publication must represent one committed database state",
+      "observable_failure": "Sequence, hash and restored contents agree would no longer hold"
+    },
+    {
+      "workflow_id": "explain",
+      "description": "Physical candidate counts are upper evidence, not visible row counts",
+      "observable_failure": "Candidate blocks and budget describe the same read transaction would no longer hold"
+    }
+  ],
+  "prompt_anchors": [
+    {
+      "id": "功能开发-01",
+      "task_type": "功能开发",
+      "capability_family": "time-weighted integration",
+      "subject": "window",
+      "state": "origin aligned; aspect: time-weighted integration",
+      "invariant": "Group windows preserve observation weighting and half-open bounds",
+      "observable": "time-weighted integration: examine windows production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "windows",
+      "workflow_ids": [
+        "windows"
+      ],
+      "source_anchors": [
+        "internal/window/reduce.go",
+        "internal/engine/query.go",
+        "internal/window/bucket.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/reduce.go",
+          "internal/engine/query.go",
+          "internal/window/bucket.go"
+        ],
+        "functions": [
+          "Aggregate",
+          "Bucket"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-02",
+      "task_type": "功能开发",
+      "capability_family": "multi-series arithmetic joins",
+      "subject": "series",
+      "state": "head and sealed; aspect: multi-series arithmetic joins",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "multi-series arithmetic joins: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-03",
+      "task_type": "功能开发",
+      "capability_family": "calendar windows with timezone changes",
+      "subject": "window",
+      "state": "origin aligned; aspect: calendar windows with timezone changes",
+      "invariant": "Group windows preserve observation weighting and half-open bounds",
+      "observable": "calendar windows with timezone changes: examine windows production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "windows",
+      "workflow_ids": [
+        "windows"
+      ],
+      "source_anchors": [
+        "internal/window/reduce.go",
+        "internal/engine/query.go",
+        "internal/window/bucket.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/reduce.go",
+          "internal/engine/query.go",
+          "internal/window/bucket.go"
+        ],
+        "functions": [
+          "Aggregate",
+          "Bucket"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-04",
+      "task_type": "功能开发",
+      "capability_family": "explicit stale markers",
+      "subject": "series",
+      "state": "head and sealed; aspect: explicit stale markers",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "explicit stale markers: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-05",
+      "task_type": "功能开发",
+      "capability_family": "histogram observations",
+      "subject": "series",
+      "state": "head and sealed; aspect: histogram observations",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "histogram observations: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-06",
+      "task_type": "功能开发",
+      "capability_family": "exemplar trace attachment",
+      "subject": "series",
+      "state": "head and sealed; aspect: exemplar trace attachment",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "exemplar trace attachment: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-07",
+      "task_type": "功能开发",
+      "capability_family": "linear interpolation queries",
+      "subject": "window",
+      "state": "origin aligned; aspect: linear interpolation queries",
+      "invariant": "Group windows preserve observation weighting and half-open bounds",
+      "observable": "linear interpolation queries: examine windows production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "windows",
+      "workflow_ids": [
+        "windows"
+      ],
+      "source_anchors": [
+        "internal/window/reduce.go",
+        "internal/engine/query.go",
+        "internal/window/bucket.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/reduce.go",
+          "internal/engine/query.go",
+          "internal/window/bucket.go"
+        ],
+        "functions": [
+          "Aggregate",
+          "Bucket"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-08",
+      "task_type": "功能开发",
+      "capability_family": "counter wrap modulus",
+      "subject": "counter",
+      "state": "reset and gap; aspect: counter wrap modulus",
+      "invariant": "Counter changes are resolved per series before grouping",
+      "observable": "counter wrap modulus: examine counters production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "rate",
+      "workflow_ids": [
+        "counters"
+      ],
+      "source_anchors": [
+        "internal/window/rate.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/rate.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Rates",
+          "Aggregate"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-09",
+      "task_type": "功能开发",
+      "capability_family": "sliding windows",
+      "subject": "window",
+      "state": "origin aligned; aspect: sliding windows",
+      "invariant": "Group windows preserve observation weighting and half-open bounds",
+      "observable": "sliding windows: examine windows production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "windows",
+      "workflow_ids": [
+        "windows"
+      ],
+      "source_anchors": [
+        "internal/window/reduce.go",
+        "internal/engine/query.go",
+        "internal/window/bucket.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/reduce.go",
+          "internal/engine/query.go",
+          "internal/window/bucket.go"
+        ],
+        "functions": [
+          "Aggregate",
+          "Bucket"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-10",
+      "task_type": "功能开发",
+      "capability_family": "session windows",
+      "subject": "window",
+      "state": "origin aligned; aspect: session windows",
+      "invariant": "Group windows preserve observation weighting and half-open bounds",
+      "observable": "session windows: examine windows production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "windows",
+      "workflow_ids": [
+        "windows"
+      ],
+      "source_anchors": [
+        "internal/window/reduce.go",
+        "internal/engine/query.go",
+        "internal/window/bucket.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/reduce.go",
+          "internal/engine/query.go",
+          "internal/window/bucket.go"
+        ],
+        "functions": [
+          "Aggregate",
+          "Bucket"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-11",
+      "task_type": "功能开发",
+      "capability_family": "recording-rule dependency graph",
+      "subject": "rollup",
+      "state": "fresh or stale; aspect: recording-rule dependency graph",
+      "invariant": "Stored aggregate is paired with its namespace source sequence",
+      "observable": "recording-rule dependency graph: examine materialize, freshness production facts",
+      "primary_mechanism": "lineage",
+      "extension_seam_id": "rollup",
+      "workflow_ids": [
+        "materialize",
+        "freshness"
+      ],
+      "source_anchors": [
+        "internal/engine/rollup.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/rollup.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Materialize",
+          "Rollup",
+          "aggregate"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-12",
+      "task_type": "功能开发",
+      "capability_family": "continuous aggregate invalidation",
+      "subject": "rollup",
+      "state": "fresh or stale; aspect: continuous aggregate invalidation",
+      "invariant": "Stored aggregate is paired with its namespace source sequence",
+      "observable": "continuous aggregate invalidation: examine materialize, freshness production facts",
+      "primary_mechanism": "lineage",
+      "extension_seam_id": "rollup",
+      "workflow_ids": [
+        "materialize",
+        "freshness"
+      ],
+      "source_anchors": [
+        "internal/engine/rollup.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/rollup.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Materialize",
+          "Rollup",
+          "aggregate"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-13",
+      "task_type": "功能开发",
+      "capability_family": "prometheus remote-write interoperability",
+      "subject": "series",
+      "state": "head and sealed; aspect: prometheus remote-write interoperability",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "prometheus remote-write interoperability: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-14",
+      "task_type": "功能开发",
+      "capability_family": "as-of nearest-series join",
+      "subject": "series",
+      "state": "head and sealed; aspect: as-of nearest-series join",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "as-of nearest-series join: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-15",
+      "task_type": "功能开发",
+      "capability_family": "cross-namespace federation",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: cross-namespace federation",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "cross-namespace federation: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-16",
+      "task_type": "功能开发",
+      "capability_family": "approximate quantile sketches",
+      "subject": "window",
+      "state": "origin aligned; aspect: approximate quantile sketches",
+      "invariant": "Group windows preserve observation weighting and half-open bounds",
+      "observable": "approximate quantile sketches: examine windows production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "windows",
+      "workflow_ids": [
+        "windows"
+      ],
+      "source_anchors": [
+        "internal/window/reduce.go",
+        "internal/engine/query.go",
+        "internal/window/bucket.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/reduce.go",
+          "internal/engine/query.go",
+          "internal/window/bucket.go"
+        ],
+        "functions": [
+          "Aggregate",
+          "Bucket"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-17",
+      "task_type": "功能开发",
+      "capability_family": "series relabel migration",
+      "subject": "labelset",
+      "state": "canonical identity; aspect: series relabel migration",
+      "invariant": "Presence differs in identity while absent values compare as empty",
+      "observable": "series relabel migration: examine discovery production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "labels",
+      "workflow_ids": [
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/model/validate.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/model/validate.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "SeriesID",
+          "Matches"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-18",
+      "task_type": "功能开发",
+      "capability_family": "hierarchical rollups",
+      "subject": "rollup",
+      "state": "fresh or stale; aspect: hierarchical rollups",
+      "invariant": "Stored aggregate is paired with its namespace source sequence",
+      "observable": "hierarchical rollups: examine materialize, freshness production facts",
+      "primary_mechanism": "lineage",
+      "extension_seam_id": "rollup",
+      "workflow_ids": [
+        "materialize",
+        "freshness"
+      ],
+      "source_anchors": [
+        "internal/engine/rollup.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/rollup.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Materialize",
+          "Rollup",
+          "aggregate"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-19",
+      "task_type": "功能开发",
+      "capability_family": "quality-aware sample selection",
+      "subject": "sample",
+      "state": "atomic admission; aspect: quality-aware sample selection",
+      "invariant": "Timestamp corrections resolve by commit sequence",
+      "observable": "quality-aware sample selection: examine ingest production facts",
+      "primary_mechanism": "batch_transaction",
+      "extension_seam_id": "write",
+      "workflow_ids": [
+        "ingest"
+      ],
+      "source_anchors": [
+        "internal/engine/ingest.go",
+        "internal/policy/admit.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/ingest.go",
+          "internal/policy/admit.go"
+        ],
+        "functions": [
+          "Write",
+          "Admit"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-20",
+      "task_type": "功能开发",
+      "capability_family": "point provenance queries",
+      "subject": "sample",
+      "state": "atomic admission; aspect: point provenance queries",
+      "invariant": "Timestamp corrections resolve by commit sequence",
+      "observable": "point provenance queries: examine ingest production facts",
+      "primary_mechanism": "batch_transaction",
+      "extension_seam_id": "write",
+      "workflow_ids": [
+        "ingest"
+      ],
+      "source_anchors": [
+        "internal/engine/ingest.go",
+        "internal/policy/admit.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/ingest.go",
+          "internal/policy/admit.go"
+        ],
+        "functions": [
+          "Write",
+          "Admit"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-21",
+      "task_type": "功能开发",
+      "capability_family": "time interval annotations",
+      "subject": "series",
+      "state": "head and sealed; aspect: time interval annotations",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "time interval annotations: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-22",
+      "task_type": "功能开发",
+      "capability_family": "quantized block codec",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: quantized block codec",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "quantized block codec: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-23",
+      "task_type": "功能开发",
+      "capability_family": "forecast holdout queries",
+      "subject": "series",
+      "state": "head and sealed; aspect: forecast holdout queries",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "forecast holdout queries: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-24",
+      "task_type": "功能开发",
+      "capability_family": "piecewise calibration",
+      "subject": "sample",
+      "state": "atomic admission; aspect: piecewise calibration",
+      "invariant": "Timestamp corrections resolve by commit sequence",
+      "observable": "piecewise calibration: examine ingest production facts",
+      "primary_mechanism": "batch_transaction",
+      "extension_seam_id": "write",
+      "workflow_ids": [
+        "ingest"
+      ],
+      "source_anchors": [
+        "internal/engine/ingest.go",
+        "internal/policy/admit.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/ingest.go",
+          "internal/policy/admit.go"
+        ],
+        "functions": [
+          "Write",
+          "Admit"
+        ]
+      }
+    },
+    {
+      "id": "功能开发-25",
+      "task_type": "功能开发",
+      "capability_family": "bounded event-time subscription",
+      "subject": "series",
+      "state": "head and sealed; aspect: bounded event-time subscription",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "bounded event-time subscription: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-01",
+      "task_type": "功能优化",
+      "capability_family": "partial-write receipts",
+      "subject": "request",
+      "state": "accepted or rejected; aspect: partial-write receipts",
+      "invariant": "Failure codes and bounded input prevent partial publication",
+      "observable": "partial-write receipts: examine ingest, range production facts",
+      "primary_mechanism": "error_propagation",
+      "extension_seam_id": "transport",
+      "workflow_ids": [
+        "ingest",
+        "range"
+      ],
+      "source_anchors": [
+        "internal/wire/json.go",
+        "internal/model/error.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/wire/json.go",
+          "internal/model/error.go"
+        ],
+        "functions": [
+          "decode",
+          "respond",
+          "Bad"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-02",
+      "task_type": "功能优化",
+      "capability_family": "per-series late policy",
+      "subject": "sample",
+      "state": "atomic admission; aspect: per-series late policy",
+      "invariant": "Timestamp corrections resolve by commit sequence",
+      "observable": "per-series late policy: examine ingest production facts",
+      "primary_mechanism": "batch_transaction",
+      "extension_seam_id": "write",
+      "workflow_ids": [
+        "ingest"
+      ],
+      "source_anchors": [
+        "internal/engine/ingest.go",
+        "internal/policy/admit.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/ingest.go",
+          "internal/policy/admit.go"
+        ],
+        "functions": [
+          "Write",
+          "Admit"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-03",
+      "task_type": "功能优化",
+      "capability_family": "deterministic duplicate corrections",
+      "subject": "sample",
+      "state": "atomic admission; aspect: deterministic duplicate corrections",
+      "invariant": "Timestamp corrections resolve by commit sequence",
+      "observable": "deterministic duplicate corrections: examine ingest production facts",
+      "primary_mechanism": "batch_transaction",
+      "extension_seam_id": "write",
+      "workflow_ids": [
+        "ingest"
+      ],
+      "source_anchors": [
+        "internal/engine/ingest.go",
+        "internal/policy/admit.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/ingest.go",
+          "internal/policy/admit.go"
+        ],
+        "functions": [
+          "Write",
+          "Admit"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-04",
+      "task_type": "功能优化",
+      "capability_family": "empty-window semantics",
+      "subject": "window",
+      "state": "origin aligned; aspect: empty-window semantics",
+      "invariant": "Group windows preserve observation weighting and half-open bounds",
+      "observable": "empty-window semantics: examine windows production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "windows",
+      "workflow_ids": [
+        "windows"
+      ],
+      "source_anchors": [
+        "internal/window/reduce.go",
+        "internal/engine/query.go",
+        "internal/window/bucket.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/reduce.go",
+          "internal/engine/query.go",
+          "internal/window/bucket.go"
+        ],
+        "functions": [
+          "Aggregate",
+          "Bucket"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-05",
+      "task_type": "功能优化",
+      "capability_family": "weighted cross-series means",
+      "subject": "window",
+      "state": "origin aligned; aspect: weighted cross-series means",
+      "invariant": "Group windows preserve observation weighting and half-open bounds",
+      "observable": "weighted cross-series means: examine windows production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "windows",
+      "workflow_ids": [
+        "windows"
+      ],
+      "source_anchors": [
+        "internal/window/reduce.go",
+        "internal/engine/query.go",
+        "internal/window/bucket.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/reduce.go",
+          "internal/engine/query.go",
+          "internal/window/bucket.go"
+        ],
+        "functions": [
+          "Aggregate",
+          "Bucket"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-06",
+      "task_type": "功能优化",
+      "capability_family": "rate gap segmentation",
+      "subject": "counter",
+      "state": "reset and gap; aspect: rate gap segmentation",
+      "invariant": "Counter changes are resolved per series before grouping",
+      "observable": "rate gap segmentation: examine counters production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "rate",
+      "workflow_ids": [
+        "counters"
+      ],
+      "source_anchors": [
+        "internal/window/rate.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/rate.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Rates",
+          "Aggregate"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-07",
+      "task_type": "功能优化",
+      "capability_family": "retention preview and commit",
+      "subject": "retention",
+      "state": "monotonic floor; aspect: retention preview and commit",
+      "invariant": "Expired timestamps cannot be reintroduced",
+      "observable": "retention preview and commit: examine retention production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "retention",
+      "workflow_ids": [
+        "retention"
+      ],
+      "source_anchors": [
+        "internal/policy/admit.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/policy/admit.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "RetentionFloor",
+          "Retain"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-08",
+      "task_type": "功能优化",
+      "capability_family": "resumable block sealing",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: resumable block sealing",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "resumable block sealing: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-09",
+      "task_type": "功能优化",
+      "capability_family": "series discovery lifecycle",
+      "subject": "series",
+      "state": "head and sealed; aspect: series discovery lifecycle",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "series discovery lifecycle: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-10",
+      "task_type": "功能优化",
+      "capability_family": "block compaction selection",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: block compaction selection",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "block compaction selection: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-11",
+      "task_type": "功能优化",
+      "capability_family": "deletion impact preview",
+      "subject": "tombstone",
+      "state": "installed then superseded; aspect: deletion impact preview",
+      "invariant": "Later corrections are not hidden by older deletion sequences",
+      "observable": "deletion impact preview: examine delete production facts",
+      "primary_mechanism": "delete_removal",
+      "extension_seam_id": "delete",
+      "workflow_ids": [
+        "delete"
+      ],
+      "source_anchors": [
+        "internal/engine/delete.go",
+        "internal/engine/ingest.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/delete.go",
+          "internal/engine/ingest.go"
+        ],
+        "functions": [
+          "Delete",
+          "hidden"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-12",
+      "task_type": "功能优化",
+      "capability_family": "rollup refresh behavior",
+      "subject": "rollup",
+      "state": "fresh or stale; aspect: rollup refresh behavior",
+      "invariant": "Stored aggregate is paired with its namespace source sequence",
+      "observable": "rollup refresh behavior: examine materialize, freshness production facts",
+      "primary_mechanism": "lineage",
+      "extension_seam_id": "rollup",
+      "workflow_ids": [
+        "materialize",
+        "freshness"
+      ],
+      "source_anchors": [
+        "internal/engine/rollup.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/rollup.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Materialize",
+          "Rollup",
+          "aggregate"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-13",
+      "task_type": "功能优化",
+      "capability_family": "per-group result limits",
+      "subject": "plan",
+      "state": "candidate and visible; aspect: per-group result limits",
+      "invariant": "Physical work and logical result cardinality remain distinguishable",
+      "observable": "per-group result limits: examine explain, range production facts",
+      "primary_mechanism": "capacity",
+      "extension_seam_id": "plan",
+      "workflow_ids": [
+        "explain",
+        "range"
+      ],
+      "source_anchors": [
+        "internal/engine/query.go",
+        "internal/engine/scan.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/query.go",
+          "internal/engine/scan.go"
+        ],
+        "functions": [
+          "Explain",
+          "scan"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-14",
+      "task_type": "功能优化",
+      "capability_family": "query partial success",
+      "subject": "series",
+      "state": "head and sealed; aspect: query partial success",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "query partial success: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-15",
+      "task_type": "功能优化",
+      "capability_family": "retention-aware range responses",
+      "subject": "retention",
+      "state": "monotonic floor; aspect: retention-aware range responses",
+      "invariant": "Expired timestamps cannot be reintroduced",
+      "observable": "retention-aware range responses: examine retention production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "retention",
+      "workflow_ids": [
+        "retention"
+      ],
+      "source_anchors": [
+        "internal/policy/admit.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/policy/admit.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "RetentionFloor",
+          "Retain"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-16",
+      "task_type": "功能优化",
+      "capability_family": "namespace draining",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: namespace draining",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "namespace draining: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-17",
+      "task_type": "功能优化",
+      "capability_family": "block overlap inspection",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: block overlap inspection",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "block overlap inspection: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-18",
+      "task_type": "功能优化",
+      "capability_family": "wide-window incremental output",
+      "subject": "window",
+      "state": "origin aligned; aspect: wide-window incremental output",
+      "invariant": "Group windows preserve observation weighting and half-open bounds",
+      "observable": "wide-window incremental output: examine windows production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "windows",
+      "workflow_ids": [
+        "windows"
+      ],
+      "source_anchors": [
+        "internal/window/reduce.go",
+        "internal/engine/query.go",
+        "internal/window/bucket.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/reduce.go",
+          "internal/engine/query.go",
+          "internal/window/bucket.go"
+        ],
+        "functions": [
+          "Aggregate",
+          "Bucket"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-19",
+      "task_type": "功能优化",
+      "capability_family": "rollup freshness resolution",
+      "subject": "rollup",
+      "state": "fresh or stale; aspect: rollup freshness resolution",
+      "invariant": "Stored aggregate is paired with its namespace source sequence",
+      "observable": "rollup freshness resolution: examine materialize, freshness production facts",
+      "primary_mechanism": "lineage",
+      "extension_seam_id": "rollup",
+      "workflow_ids": [
+        "materialize",
+        "freshness"
+      ],
+      "source_anchors": [
+        "internal/engine/rollup.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/rollup.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Materialize",
+          "Rollup",
+          "aggregate"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-20",
+      "task_type": "功能优化",
+      "capability_family": "rate edge context",
+      "subject": "series",
+      "state": "head and sealed; aspect: rate edge context",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "rate edge context: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-21",
+      "task_type": "功能优化",
+      "capability_family": "range ordering modes",
+      "subject": "series",
+      "state": "head and sealed; aspect: range ordering modes",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "range ordering modes: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-22",
+      "task_type": "功能优化",
+      "capability_family": "aggregation boundary fragments",
+      "subject": "window",
+      "state": "origin aligned; aspect: aggregation boundary fragments",
+      "invariant": "Group windows preserve observation weighting and half-open bounds",
+      "observable": "aggregation boundary fragments: examine windows production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "windows",
+      "workflow_ids": [
+        "windows"
+      ],
+      "source_anchors": [
+        "internal/window/reduce.go",
+        "internal/engine/query.go",
+        "internal/window/bucket.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/reduce.go",
+          "internal/engine/query.go",
+          "internal/window/bucket.go"
+        ],
+        "functions": [
+          "Aggregate",
+          "Bucket"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-23",
+      "task_type": "功能优化",
+      "capability_family": "selector explain evidence",
+      "subject": "labelset",
+      "state": "canonical identity; aspect: selector explain evidence",
+      "invariant": "Presence differs in identity while absent values compare as empty",
+      "observable": "selector explain evidence: examine discovery production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "labels",
+      "workflow_ids": [
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/model/validate.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/model/validate.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "SeriesID",
+          "Matches"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-24",
+      "task_type": "功能优化",
+      "capability_family": "deletion undo horizon",
+      "subject": "tombstone",
+      "state": "installed then superseded; aspect: deletion undo horizon",
+      "invariant": "Later corrections are not hidden by older deletion sequences",
+      "observable": "deletion undo horizon: examine delete production facts",
+      "primary_mechanism": "delete_removal",
+      "extension_seam_id": "delete",
+      "workflow_ids": [
+        "delete"
+      ],
+      "source_anchors": [
+        "internal/engine/delete.go",
+        "internal/engine/ingest.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/delete.go",
+          "internal/engine/ingest.go"
+        ],
+        "functions": [
+          "Delete",
+          "hidden"
+        ]
+      }
+    },
+    {
+      "id": "功能优化-25",
+      "task_type": "功能优化",
+      "capability_family": "backup publication receipts",
+      "subject": "image",
+      "state": "exported and restored; aspect: backup publication receipts",
+      "invariant": "Restored image represents the advertised committed database state",
+      "observable": "backup publication receipts: examine backup production facts",
+      "primary_mechanism": "export_freeze",
+      "extension_seam_id": "backup",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/backup.go",
+        "internal/wire/image.go",
+        "cmd/ridgeline/main.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/backup.go",
+          "internal/wire/image.go",
+          "cmd/ridgeline/main.go"
+        ],
+        "functions": [
+          "Snapshot",
+          "serveImage",
+          "run"
+        ]
+      }
+    },
+    {
+      "id": "代码重构-01",
+      "task_type": "代码重构",
+      "capability_family": "query source iteration",
+      "subject": "series",
+      "state": "head and sealed; aspect: query source iteration",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "query source iteration: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "代码重构-02",
+      "task_type": "代码重构",
+      "capability_family": "maintenance transaction ownership",
+      "subject": "series",
+      "state": "head and sealed; aspect: maintenance transaction ownership",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "maintenance transaction ownership: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "代码重构-03",
+      "task_type": "代码重构",
+      "capability_family": "transport error boundaries",
+      "subject": "request",
+      "state": "accepted or rejected; aspect: transport error boundaries",
+      "invariant": "Failure codes and bounded input prevent partial publication",
+      "observable": "transport error boundaries: examine ingest, range production facts",
+      "primary_mechanism": "error_propagation",
+      "extension_seam_id": "transport",
+      "workflow_ids": [
+        "ingest",
+        "range"
+      ],
+      "source_anchors": [
+        "internal/wire/json.go",
+        "internal/model/error.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/wire/json.go",
+          "internal/model/error.go"
+        ],
+        "functions": [
+          "decode",
+          "respond",
+          "Bad"
+        ]
+      }
+    },
+    {
+      "id": "代码重构-04",
+      "task_type": "代码重构",
+      "capability_family": "aggregation reducer algebra",
+      "subject": "window",
+      "state": "origin aligned; aspect: aggregation reducer algebra",
+      "invariant": "Group windows preserve observation weighting and half-open bounds",
+      "observable": "aggregation reducer algebra: examine windows production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "windows",
+      "workflow_ids": [
+        "windows"
+      ],
+      "source_anchors": [
+        "internal/window/reduce.go",
+        "internal/engine/query.go",
+        "internal/window/bucket.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/reduce.go",
+          "internal/engine/query.go",
+          "internal/window/bucket.go"
+        ],
+        "functions": [
+          "Aggregate",
+          "Bucket"
+        ]
+      }
+    },
+    {
+      "id": "代码重构-05",
+      "task_type": "代码重构",
+      "capability_family": "series catalog ownership",
+      "subject": "series",
+      "state": "head and sealed; aspect: series catalog ownership",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "series catalog ownership: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "代码重构-06",
+      "task_type": "代码重构",
+      "capability_family": "block publication interface",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: block publication interface",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "block publication interface: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "代码重构-07",
+      "task_type": "代码重构",
+      "capability_family": "tombstone resolution boundary",
+      "subject": "tombstone",
+      "state": "installed then superseded; aspect: tombstone resolution boundary",
+      "invariant": "Later corrections are not hidden by older deletion sequences",
+      "observable": "tombstone resolution boundary: examine delete production facts",
+      "primary_mechanism": "delete_removal",
+      "extension_seam_id": "delete",
+      "workflow_ids": [
+        "delete"
+      ],
+      "source_anchors": [
+        "internal/engine/delete.go",
+        "internal/engine/ingest.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/delete.go",
+          "internal/engine/ingest.go"
+        ],
+        "functions": [
+          "Delete",
+          "hidden"
+        ]
+      }
+    },
+    {
+      "id": "代码重构-08",
+      "task_type": "代码重构",
+      "capability_family": "rollup provenance representation",
+      "subject": "rollup",
+      "state": "fresh or stale; aspect: rollup provenance representation",
+      "invariant": "Stored aggregate is paired with its namespace source sequence",
+      "observable": "rollup provenance representation: examine materialize, freshness production facts",
+      "primary_mechanism": "lineage",
+      "extension_seam_id": "rollup",
+      "workflow_ids": [
+        "materialize",
+        "freshness"
+      ],
+      "source_anchors": [
+        "internal/engine/rollup.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/rollup.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Materialize",
+          "Rollup",
+          "aggregate"
+        ]
+      }
+    },
+    {
+      "id": "代码重构-09",
+      "task_type": "代码重构",
+      "capability_family": "retention decision separation",
+      "subject": "retention",
+      "state": "monotonic floor; aspect: retention decision separation",
+      "invariant": "Expired timestamps cannot be reintroduced",
+      "observable": "retention decision separation: examine retention production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "retention",
+      "workflow_ids": [
+        "retention"
+      ],
+      "source_anchors": [
+        "internal/policy/admit.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/policy/admit.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "RetentionFloor",
+          "Retain"
+        ]
+      }
+    },
+    {
+      "id": "代码重构-10",
+      "task_type": "代码重构",
+      "capability_family": "matcher compilation",
+      "subject": "labelset",
+      "state": "canonical identity; aspect: matcher compilation",
+      "invariant": "Presence differs in identity while absent values compare as empty",
+      "observable": "matcher compilation: examine discovery production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "labels",
+      "workflow_ids": [
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/model/validate.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/model/validate.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "SeriesID",
+          "Matches"
+        ]
+      }
+    },
+    {
+      "id": "代码重构-11",
+      "task_type": "代码重构",
+      "capability_family": "namespace config evolution",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: namespace config evolution",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "namespace config evolution: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "代码重构-12",
+      "task_type": "代码重构",
+      "capability_family": "database bucket access abstraction",
+      "subject": "series",
+      "state": "head and sealed; aspect: database bucket access abstraction",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "database bucket access abstraction: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "代码重构-13",
+      "task_type": "代码重构",
+      "capability_family": "query planning execution separation",
+      "subject": "plan",
+      "state": "candidate and visible; aspect: query planning execution separation",
+      "invariant": "Physical work and logical result cardinality remain distinguishable",
+      "observable": "query planning execution separation: examine explain, range production facts",
+      "primary_mechanism": "capacity",
+      "extension_seam_id": "plan",
+      "workflow_ids": [
+        "explain",
+        "range"
+      ],
+      "source_anchors": [
+        "internal/engine/query.go",
+        "internal/engine/scan.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/query.go",
+          "internal/engine/scan.go"
+        ],
+        "functions": [
+          "Explain",
+          "scan"
+        ]
+      }
+    },
+    {
+      "id": "代码重构-14",
+      "task_type": "代码重构",
+      "capability_family": "backup lifecycle encapsulation",
+      "subject": "image",
+      "state": "exported and restored; aspect: backup lifecycle encapsulation",
+      "invariant": "Restored image represents the advertised committed database state",
+      "observable": "backup lifecycle encapsulation: examine backup production facts",
+      "primary_mechanism": "export_freeze",
+      "extension_seam_id": "backup",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/backup.go",
+        "internal/wire/image.go",
+        "cmd/ridgeline/main.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/backup.go",
+          "internal/wire/image.go",
+          "cmd/ridgeline/main.go"
+        ],
+        "functions": [
+          "Snapshot",
+          "serveImage",
+          "run"
+        ]
+      }
+    },
+    {
+      "id": "代码重构-15",
+      "task_type": "代码重构",
+      "capability_family": "server dependency wiring",
+      "subject": "series",
+      "state": "head and sealed; aspect: server dependency wiring",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "server dependency wiring: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "依赖升级与迁移-01",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "block JSON-to-columnar format",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: block JSON-to-columnar format",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "block JSON-to-columnar format: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "依赖升级与迁移-02",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "bbolt-to-SQLite storage",
+      "subject": "volume",
+      "state": "opened and snapshotted; aspect: bbolt-to-SQLite storage",
+      "invariant": "Signed temporal keys and storage commits agree across restart",
+      "observable": "bbolt-to-SQLite storage: examine ingest, range, backup production facts",
+      "primary_mechanism": "recovery_rollback",
+      "extension_seam_id": "volume",
+      "workflow_ids": [
+        "ingest",
+        "range",
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/db.go",
+        "internal/volume/keys.go",
+        "internal/engine/scan.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/db.go",
+          "internal/volume/keys.go",
+          "internal/engine/scan.go"
+        ],
+        "functions": [
+          "Open",
+          "PointKey",
+          "scan"
+        ]
+      }
+    },
+    {
+      "id": "依赖升级与迁移-03",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "namespace metadata version",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: namespace metadata version",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "namespace metadata version: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "依赖升级与迁移-04",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "timestamp unit evolution",
+      "subject": "volume",
+      "state": "opened and snapshotted; aspect: timestamp unit evolution",
+      "invariant": "Signed temporal keys and storage commits agree across restart",
+      "observable": "timestamp unit evolution: examine ingest, range, backup production facts",
+      "primary_mechanism": "recovery_rollback",
+      "extension_seam_id": "volume",
+      "workflow_ids": [
+        "ingest",
+        "range",
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/db.go",
+        "internal/volume/keys.go",
+        "internal/engine/scan.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/db.go",
+          "internal/volume/keys.go",
+          "internal/engine/scan.go"
+        ],
+        "functions": [
+          "Open",
+          "PointKey",
+          "scan"
+        ]
+      }
+    },
+    {
+      "id": "依赖升级与迁移-05",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "series identity encoding",
+      "subject": "labelset",
+      "state": "canonical identity; aspect: series identity encoding",
+      "invariant": "Presence differs in identity while absent values compare as empty",
+      "observable": "series identity encoding: examine discovery production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "labels",
+      "workflow_ids": [
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/model/validate.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/model/validate.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "SeriesID",
+          "Matches"
+        ]
+      }
+    },
+    {
+      "id": "依赖升级与迁移-06",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "deletion record format",
+      "subject": "tombstone",
+      "state": "installed then superseded; aspect: deletion record format",
+      "invariant": "Later corrections are not hidden by older deletion sequences",
+      "observable": "deletion record format: examine delete production facts",
+      "primary_mechanism": "delete_removal",
+      "extension_seam_id": "delete",
+      "workflow_ids": [
+        "delete"
+      ],
+      "source_anchors": [
+        "internal/engine/delete.go",
+        "internal/engine/ingest.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/delete.go",
+          "internal/engine/ingest.go"
+        ],
+        "functions": [
+          "Delete",
+          "hidden"
+        ]
+      }
+    },
+    {
+      "id": "依赖升级与迁移-07",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "rollup cache schema",
+      "subject": "rollup",
+      "state": "fresh or stale; aspect: rollup cache schema",
+      "invariant": "Stored aggregate is paired with its namespace source sequence",
+      "observable": "rollup cache schema: examine materialize, freshness production facts",
+      "primary_mechanism": "lineage",
+      "extension_seam_id": "rollup",
+      "workflow_ids": [
+        "materialize",
+        "freshness"
+      ],
+      "source_anchors": [
+        "internal/engine/rollup.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/rollup.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Materialize",
+          "Rollup",
+          "aggregate"
+        ]
+      }
+    },
+    {
+      "id": "依赖升级与迁移-08",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "label normalization rules",
+      "subject": "labelset",
+      "state": "canonical identity; aspect: label normalization rules",
+      "invariant": "Presence differs in identity while absent values compare as empty",
+      "observable": "label normalization rules: examine discovery production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "labels",
+      "workflow_ids": [
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/model/validate.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/model/validate.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "SeriesID",
+          "Matches"
+        ]
+      }
+    },
+    {
+      "id": "依赖升级与迁移-09",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "checksum algorithm transition",
+      "subject": "series",
+      "state": "head and sealed; aspect: checksum algorithm transition",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "checksum algorithm transition: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "依赖升级与迁移-10",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "compression format coexistence",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: compression format coexistence",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "compression format coexistence: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "依赖升级与迁移-11",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "error contract versioning",
+      "subject": "request",
+      "state": "accepted or rejected; aspect: error contract versioning",
+      "invariant": "Failure codes and bounded input prevent partial publication",
+      "observable": "error contract versioning: examine ingest, range production facts",
+      "primary_mechanism": "error_propagation",
+      "extension_seam_id": "transport",
+      "workflow_ids": [
+        "ingest",
+        "range"
+      ],
+      "source_anchors": [
+        "internal/wire/json.go",
+        "internal/model/error.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/wire/json.go",
+          "internal/model/error.go"
+        ],
+        "functions": [
+          "decode",
+          "respond",
+          "Bad"
+        ]
+      }
+    },
+    {
+      "id": "依赖升级与迁移-12",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "query result format",
+      "subject": "volume",
+      "state": "opened and snapshotted; aspect: query result format",
+      "invariant": "Signed temporal keys and storage commits agree across restart",
+      "observable": "query result format: examine ingest, range, backup production facts",
+      "primary_mechanism": "recovery_rollback",
+      "extension_seam_id": "volume",
+      "workflow_ids": [
+        "ingest",
+        "range",
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/db.go",
+        "internal/volume/keys.go",
+        "internal/engine/scan.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/db.go",
+          "internal/volume/keys.go",
+          "internal/engine/scan.go"
+        ],
+        "functions": [
+          "Open",
+          "PointKey",
+          "scan"
+        ]
+      }
+    },
+    {
+      "id": "依赖升级与迁移-13",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "retention floor metadata",
+      "subject": "retention",
+      "state": "monotonic floor; aspect: retention floor metadata",
+      "invariant": "Expired timestamps cannot be reintroduced",
+      "observable": "retention floor metadata: examine retention production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "retention",
+      "workflow_ids": [
+        "retention"
+      ],
+      "source_anchors": [
+        "internal/policy/admit.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/policy/admit.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "RetentionFloor",
+          "Retain"
+        ]
+      }
+    },
+    {
+      "id": "依赖升级与迁移-14",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "counter sample type",
+      "subject": "counter",
+      "state": "reset and gap; aspect: counter sample type",
+      "invariant": "Counter changes are resolved per series before grouping",
+      "observable": "counter sample type: examine counters production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "rate",
+      "workflow_ids": [
+        "counters"
+      ],
+      "source_anchors": [
+        "internal/window/rate.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/rate.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Rates",
+          "Aggregate"
+        ]
+      }
+    },
+    {
+      "id": "依赖升级与迁移-15",
+      "task_type": "依赖升级与迁移",
+      "capability_family": "database file layout",
+      "subject": "volume",
+      "state": "opened and snapshotted; aspect: database file layout",
+      "invariant": "Signed temporal keys and storage commits agree across restart",
+      "observable": "database file layout: examine ingest, range, backup production facts",
+      "primary_mechanism": "recovery_rollback",
+      "extension_seam_id": "volume",
+      "workflow_ids": [
+        "ingest",
+        "range",
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/db.go",
+        "internal/volume/keys.go",
+        "internal/engine/scan.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/db.go",
+          "internal/volume/keys.go",
+          "internal/engine/scan.go"
+        ],
+        "functions": [
+          "Open",
+          "PointKey",
+          "scan"
+        ]
+      }
+    },
+    {
+      "id": "质量保障-01",
+      "task_type": "质量保障",
+      "capability_family": "temporal differential oracle",
+      "subject": "series",
+      "state": "head and sealed; aspect: temporal differential oracle",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "temporal differential oracle: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "质量保障-02",
+      "task_type": "质量保障",
+      "capability_family": "crash recovery stateful assurance",
+      "subject": "series",
+      "state": "head and sealed; aspect: crash recovery stateful assurance",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "crash recovery stateful assurance: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "质量保障-03",
+      "task_type": "质量保障",
+      "capability_family": "counter reset metamorphic verification",
+      "subject": "counter",
+      "state": "reset and gap; aspect: counter reset metamorphic verification",
+      "invariant": "Counter changes are resolved per series before grouping",
+      "observable": "counter reset metamorphic verification: examine counters production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "rate",
+      "workflow_ids": [
+        "counters"
+      ],
+      "source_anchors": [
+        "internal/window/rate.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/rate.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Rates",
+          "Aggregate"
+        ]
+      }
+    },
+    {
+      "id": "质量保障-04",
+      "task_type": "质量保障",
+      "capability_family": "negative-time window oracle",
+      "subject": "window",
+      "state": "origin aligned; aspect: negative-time window oracle",
+      "invariant": "Group windows preserve observation weighting and half-open bounds",
+      "observable": "negative-time window oracle: examine windows production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "windows",
+      "workflow_ids": [
+        "windows"
+      ],
+      "source_anchors": [
+        "internal/window/reduce.go",
+        "internal/engine/query.go",
+        "internal/window/bucket.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/reduce.go",
+          "internal/engine/query.go",
+          "internal/window/bucket.go"
+        ],
+        "functions": [
+          "Aggregate",
+          "Bucket"
+        ]
+      }
+    },
+    {
+      "id": "质量保障-05",
+      "task_type": "质量保障",
+      "capability_family": "selector algebra validation",
+      "subject": "labelset",
+      "state": "canonical identity; aspect: selector algebra validation",
+      "invariant": "Presence differs in identity while absent values compare as empty",
+      "observable": "selector algebra validation: examine discovery production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "labels",
+      "workflow_ids": [
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/model/validate.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/model/validate.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "SeriesID",
+          "Matches"
+        ]
+      }
+    },
+    {
+      "id": "质量保障-06",
+      "task_type": "质量保障",
+      "capability_family": "head-block equivalence",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: head-block equivalence",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "head-block equivalence: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "质量保障-07",
+      "task_type": "质量保障",
+      "capability_family": "compaction idempotence",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: compaction idempotence",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "compaction idempotence: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "质量保障-08",
+      "task_type": "质量保障",
+      "capability_family": "retention resurrection safety",
+      "subject": "retention",
+      "state": "monotonic floor; aspect: retention resurrection safety",
+      "invariant": "Expired timestamps cannot be reintroduced",
+      "observable": "retention resurrection safety: examine retention production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "retention",
+      "workflow_ids": [
+        "retention"
+      ],
+      "source_anchors": [
+        "internal/policy/admit.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/policy/admit.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "RetentionFloor",
+          "Retain"
+        ]
+      }
+    },
+    {
+      "id": "质量保障-09",
+      "task_type": "质量保障",
+      "capability_family": "delete-then-correct semantics",
+      "subject": "tombstone",
+      "state": "installed then superseded; aspect: delete-then-correct semantics",
+      "invariant": "Later corrections are not hidden by older deletion sequences",
+      "observable": "delete-then-correct semantics: examine delete production facts",
+      "primary_mechanism": "delete_removal",
+      "extension_seam_id": "delete",
+      "workflow_ids": [
+        "delete"
+      ],
+      "source_anchors": [
+        "internal/engine/delete.go",
+        "internal/engine/ingest.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/delete.go",
+          "internal/engine/ingest.go"
+        ],
+        "functions": [
+          "Delete",
+          "hidden"
+        ]
+      }
+    },
+    {
+      "id": "质量保障-10",
+      "task_type": "质量保障",
+      "capability_family": "backup point-in-time equality",
+      "subject": "image",
+      "state": "exported and restored; aspect: backup point-in-time equality",
+      "invariant": "Restored image represents the advertised committed database state",
+      "observable": "backup point-in-time equality: examine backup production facts",
+      "primary_mechanism": "export_freeze",
+      "extension_seam_id": "backup",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/backup.go",
+        "internal/wire/image.go",
+        "cmd/ridgeline/main.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/backup.go",
+          "internal/wire/image.go",
+          "cmd/ridgeline/main.go"
+        ],
+        "functions": [
+          "Snapshot",
+          "serveImage",
+          "run"
+        ]
+      }
+    },
+    {
+      "id": "质量保障-11",
+      "task_type": "质量保障",
+      "capability_family": "rollup stale detection",
+      "subject": "rollup",
+      "state": "fresh or stale; aspect: rollup stale detection",
+      "invariant": "Stored aggregate is paired with its namespace source sequence",
+      "observable": "rollup stale detection: examine materialize, freshness production facts",
+      "primary_mechanism": "lineage",
+      "extension_seam_id": "rollup",
+      "workflow_ids": [
+        "materialize",
+        "freshness"
+      ],
+      "source_anchors": [
+        "internal/engine/rollup.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/rollup.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Materialize",
+          "Rollup",
+          "aggregate"
+        ]
+      }
+    },
+    {
+      "id": "质量保障-12",
+      "task_type": "质量保障",
+      "capability_family": "atomic failed-write preservation",
+      "subject": "request",
+      "state": "accepted or rejected; aspect: atomic failed-write preservation",
+      "invariant": "Failure codes and bounded input prevent partial publication",
+      "observable": "atomic failed-write preservation: examine ingest, range production facts",
+      "primary_mechanism": "error_propagation",
+      "extension_seam_id": "transport",
+      "workflow_ids": [
+        "ingest",
+        "range"
+      ],
+      "source_anchors": [
+        "internal/wire/json.go",
+        "internal/model/error.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/wire/json.go",
+          "internal/model/error.go"
+        ],
+        "functions": [
+          "decode",
+          "respond",
+          "Bad"
+        ]
+      }
+    },
+    {
+      "id": "质量保障-13",
+      "task_type": "质量保障",
+      "capability_family": "body quota enforcement",
+      "subject": "request",
+      "state": "accepted or rejected; aspect: body quota enforcement",
+      "invariant": "Failure codes and bounded input prevent partial publication",
+      "observable": "body quota enforcement: examine ingest, range production facts",
+      "primary_mechanism": "error_propagation",
+      "extension_seam_id": "transport",
+      "workflow_ids": [
+        "ingest",
+        "range"
+      ],
+      "source_anchors": [
+        "internal/wire/json.go",
+        "internal/model/error.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/wire/json.go",
+          "internal/model/error.go"
+        ],
+        "functions": [
+          "decode",
+          "respond",
+          "Bad"
+        ]
+      }
+    },
+    {
+      "id": "质量保障-14",
+      "task_type": "质量保障",
+      "capability_family": "parallel client visibility",
+      "subject": "series",
+      "state": "head and sealed; aspect: parallel client visibility",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "parallel client visibility: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "质量保障-15",
+      "task_type": "质量保障",
+      "capability_family": "bounded scan work measurement",
+      "subject": "plan",
+      "state": "candidate and visible; aspect: bounded scan work measurement",
+      "invariant": "Physical work and logical result cardinality remain distinguishable",
+      "observable": "bounded scan work measurement: examine explain, range production facts",
+      "primary_mechanism": "capacity",
+      "extension_seam_id": "plan",
+      "workflow_ids": [
+        "explain",
+        "range"
+      ],
+      "source_anchors": [
+        "internal/engine/query.go",
+        "internal/engine/scan.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/query.go",
+          "internal/engine/scan.go"
+        ],
+        "functions": [
+          "Explain",
+          "scan"
+        ]
+      }
+    },
+    {
+      "id": "项目维护-01",
+      "task_type": "项目维护",
+      "capability_family": "database incident recovery handbook",
+      "subject": "series",
+      "state": "head and sealed; aspect: database incident recovery handbook",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "database incident recovery handbook: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "项目维护-02",
+      "task_type": "项目维护",
+      "capability_family": "format compatibility handbook",
+      "subject": "volume",
+      "state": "opened and snapshotted; aspect: format compatibility handbook",
+      "invariant": "Signed temporal keys and storage commits agree across restart",
+      "observable": "format compatibility handbook: examine ingest, range, backup production facts",
+      "primary_mechanism": "recovery_rollback",
+      "extension_seam_id": "volume",
+      "workflow_ids": [
+        "ingest",
+        "range",
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/db.go",
+        "internal/volume/keys.go",
+        "internal/engine/scan.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/db.go",
+          "internal/volume/keys.go",
+          "internal/engine/scan.go"
+        ],
+        "functions": [
+          "Open",
+          "PointKey",
+          "scan"
+        ]
+      }
+    },
+    {
+      "id": "项目维护-03",
+      "task_type": "项目维护",
+      "capability_family": "retention change procedure",
+      "subject": "retention",
+      "state": "monotonic floor; aspect: retention change procedure",
+      "invariant": "Expired timestamps cannot be reintroduced",
+      "observable": "retention change procedure: examine retention production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "retention",
+      "workflow_ids": [
+        "retention"
+      ],
+      "source_anchors": [
+        "internal/policy/admit.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/policy/admit.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "RetentionFloor",
+          "Retain"
+        ]
+      }
+    },
+    {
+      "id": "项目维护-04",
+      "task_type": "项目维护",
+      "capability_family": "late-data onboarding guide",
+      "subject": "sample",
+      "state": "atomic admission; aspect: late-data onboarding guide",
+      "invariant": "Timestamp corrections resolve by commit sequence",
+      "observable": "late-data onboarding guide: examine ingest production facts",
+      "primary_mechanism": "batch_transaction",
+      "extension_seam_id": "write",
+      "workflow_ids": [
+        "ingest"
+      ],
+      "source_anchors": [
+        "internal/engine/ingest.go",
+        "internal/policy/admit.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/ingest.go",
+          "internal/policy/admit.go"
+        ],
+        "functions": [
+          "Write",
+          "Admit"
+        ]
+      }
+    },
+    {
+      "id": "项目维护-05",
+      "task_type": "项目维护",
+      "capability_family": "counter versus gauge guide",
+      "subject": "counter",
+      "state": "reset and gap; aspect: counter versus gauge guide",
+      "invariant": "Counter changes are resolved per series before grouping",
+      "observable": "counter versus gauge guide: examine counters production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "rate",
+      "workflow_ids": [
+        "counters"
+      ],
+      "source_anchors": [
+        "internal/window/rate.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/rate.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Rates",
+          "Aggregate"
+        ]
+      }
+    },
+    {
+      "id": "项目维护-06",
+      "task_type": "项目维护",
+      "capability_family": "deletion compliance procedure",
+      "subject": "tombstone",
+      "state": "installed then superseded; aspect: deletion compliance procedure",
+      "invariant": "Later corrections are not hidden by older deletion sequences",
+      "observable": "deletion compliance procedure: examine delete production facts",
+      "primary_mechanism": "delete_removal",
+      "extension_seam_id": "delete",
+      "workflow_ids": [
+        "delete"
+      ],
+      "source_anchors": [
+        "internal/engine/delete.go",
+        "internal/engine/ingest.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/delete.go",
+          "internal/engine/ingest.go"
+        ],
+        "functions": [
+          "Delete",
+          "hidden"
+        ]
+      }
+    },
+    {
+      "id": "项目维护-07",
+      "task_type": "项目维护",
+      "capability_family": "namespace read-only transition",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: namespace read-only transition",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "namespace read-only transition: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "项目维护-08",
+      "task_type": "项目维护",
+      "capability_family": "space reclamation guide",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: space reclamation guide",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "space reclamation guide: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "项目维护-09",
+      "task_type": "项目维护",
+      "capability_family": "query truncation guide",
+      "subject": "plan",
+      "state": "candidate and visible; aspect: query truncation guide",
+      "invariant": "Physical work and logical result cardinality remain distinguishable",
+      "observable": "query truncation guide: examine explain, range production facts",
+      "primary_mechanism": "capacity",
+      "extension_seam_id": "plan",
+      "workflow_ids": [
+        "explain",
+        "range"
+      ],
+      "source_anchors": [
+        "internal/engine/query.go",
+        "internal/engine/scan.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/query.go",
+          "internal/engine/scan.go"
+        ],
+        "functions": [
+          "Explain",
+          "scan"
+        ]
+      }
+    },
+    {
+      "id": "项目维护-10",
+      "task_type": "项目维护",
+      "capability_family": "rollup freshness guide",
+      "subject": "rollup",
+      "state": "fresh or stale; aspect: rollup freshness guide",
+      "invariant": "Stored aggregate is paired with its namespace source sequence",
+      "observable": "rollup freshness guide: examine materialize, freshness production facts",
+      "primary_mechanism": "lineage",
+      "extension_seam_id": "rollup",
+      "workflow_ids": [
+        "materialize",
+        "freshness"
+      ],
+      "source_anchors": [
+        "internal/engine/rollup.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/rollup.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Materialize",
+          "Rollup",
+          "aggregate"
+        ]
+      }
+    },
+    {
+      "id": "项目维护-11",
+      "task_type": "项目维护",
+      "capability_family": "label cardinality guide",
+      "subject": "labelset",
+      "state": "canonical identity; aspect: label cardinality guide",
+      "invariant": "Presence differs in identity while absent values compare as empty",
+      "observable": "label cardinality guide: examine discovery production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "labels",
+      "workflow_ids": [
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/model/validate.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/model/validate.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "SeriesID",
+          "Matches"
+        ]
+      }
+    },
+    {
+      "id": "项目维护-12",
+      "task_type": "项目维护",
+      "capability_family": "backup validation worksheet",
+      "subject": "image",
+      "state": "exported and restored; aspect: backup validation worksheet",
+      "invariant": "Restored image represents the advertised committed database state",
+      "observable": "backup validation worksheet: examine backup production facts",
+      "primary_mechanism": "export_freeze",
+      "extension_seam_id": "backup",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/backup.go",
+        "internal/wire/image.go",
+        "cmd/ridgeline/main.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/backup.go",
+          "internal/wire/image.go",
+          "cmd/ridgeline/main.go"
+        ],
+        "functions": [
+          "Snapshot",
+          "serveImage",
+          "run"
+        ]
+      }
+    },
+    {
+      "id": "项目维护-13",
+      "task_type": "项目维护",
+      "capability_family": "build provenance procedure",
+      "subject": "volume",
+      "state": "opened and snapshotted; aspect: build provenance procedure",
+      "invariant": "Signed temporal keys and storage commits agree across restart",
+      "observable": "build provenance procedure: examine ingest, range, backup production facts",
+      "primary_mechanism": "recovery_rollback",
+      "extension_seam_id": "volume",
+      "workflow_ids": [
+        "ingest",
+        "range",
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/db.go",
+        "internal/volume/keys.go",
+        "internal/engine/scan.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/db.go",
+          "internal/volume/keys.go",
+          "internal/engine/scan.go"
+        ],
+        "functions": [
+          "Open",
+          "PointKey",
+          "scan"
+        ]
+      }
+    },
+    {
+      "id": "项目维护-14",
+      "task_type": "项目维护",
+      "capability_family": "time-unit contract guide",
+      "subject": "series",
+      "state": "head and sealed; aspect: time-unit contract guide",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "time-unit contract guide: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "项目维护-15",
+      "task_type": "项目维护",
+      "capability_family": "deployment capacity worksheet",
+      "subject": "series",
+      "state": "head and sealed; aspect: deployment capacity worksheet",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "deployment capacity worksheet: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "技术讨论-01",
+      "task_type": "技术讨论",
+      "capability_family": "temporal partition design",
+      "subject": "series",
+      "state": "head and sealed; aspect: temporal partition design",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "temporal partition design: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "技术讨论-02",
+      "task_type": "技术讨论",
+      "capability_family": "durability versus amplification",
+      "subject": "volume",
+      "state": "opened and snapshotted; aspect: durability versus amplification",
+      "invariant": "Signed temporal keys and storage commits agree across restart",
+      "observable": "durability versus amplification: examine ingest, range, backup production facts",
+      "primary_mechanism": "recovery_rollback",
+      "extension_seam_id": "volume",
+      "workflow_ids": [
+        "ingest",
+        "range",
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/db.go",
+        "internal/volume/keys.go",
+        "internal/engine/scan.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/db.go",
+          "internal/volume/keys.go",
+          "internal/engine/scan.go"
+        ],
+        "functions": [
+          "Open",
+          "PointKey",
+          "scan"
+        ]
+      }
+    },
+    {
+      "id": "技术讨论-03",
+      "task_type": "技术讨论",
+      "capability_family": "row versus column block layout",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: row versus column block layout",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "row versus column block layout: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "技术讨论-04",
+      "task_type": "技术讨论",
+      "capability_family": "counter boundary estimation",
+      "subject": "counter",
+      "state": "reset and gap; aspect: counter boundary estimation",
+      "invariant": "Counter changes are resolved per series before grouping",
+      "observable": "counter boundary estimation: examine counters production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "rate",
+      "workflow_ids": [
+        "counters"
+      ],
+      "source_anchors": [
+        "internal/window/rate.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/rate.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Rates",
+          "Aggregate"
+        ]
+      }
+    },
+    {
+      "id": "技术讨论-05",
+      "task_type": "技术讨论",
+      "capability_family": "materialized result invalidation",
+      "subject": "rollup",
+      "state": "fresh or stale; aspect: materialized result invalidation",
+      "invariant": "Stored aggregate is paired with its namespace source sequence",
+      "observable": "materialized result invalidation: examine materialize, freshness production facts",
+      "primary_mechanism": "lineage",
+      "extension_seam_id": "rollup",
+      "workflow_ids": [
+        "materialize",
+        "freshness"
+      ],
+      "source_anchors": [
+        "internal/engine/rollup.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/rollup.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Materialize",
+          "Rollup",
+          "aggregate"
+        ]
+      }
+    },
+    {
+      "id": "技术讨论-06",
+      "task_type": "技术讨论",
+      "capability_family": "label index economics",
+      "subject": "labelset",
+      "state": "canonical identity; aspect: label index economics",
+      "invariant": "Presence differs in identity while absent values compare as empty",
+      "observable": "label index economics: examine discovery production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "labels",
+      "workflow_ids": [
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/model/validate.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/model/validate.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "SeriesID",
+          "Matches"
+        ]
+      }
+    },
+    {
+      "id": "技术讨论-07",
+      "task_type": "技术讨论",
+      "capability_family": "memory versus scan limits",
+      "subject": "plan",
+      "state": "candidate and visible; aspect: memory versus scan limits",
+      "invariant": "Physical work and logical result cardinality remain distinguishable",
+      "observable": "memory versus scan limits: examine explain, range production facts",
+      "primary_mechanism": "capacity",
+      "extension_seam_id": "plan",
+      "workflow_ids": [
+        "explain",
+        "range"
+      ],
+      "source_anchors": [
+        "internal/engine/query.go",
+        "internal/engine/scan.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/query.go",
+          "internal/engine/scan.go"
+        ],
+        "functions": [
+          "Explain",
+          "scan"
+        ]
+      }
+    },
+    {
+      "id": "技术讨论-08",
+      "task_type": "技术讨论",
+      "capability_family": "clock skew admission",
+      "subject": "sample",
+      "state": "atomic admission; aspect: clock skew admission",
+      "invariant": "Timestamp corrections resolve by commit sequence",
+      "observable": "clock skew admission: examine ingest production facts",
+      "primary_mechanism": "batch_transaction",
+      "extension_seam_id": "write",
+      "workflow_ids": [
+        "ingest"
+      ],
+      "source_anchors": [
+        "internal/engine/ingest.go",
+        "internal/policy/admit.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/ingest.go",
+          "internal/policy/admit.go"
+        ],
+        "functions": [
+          "Write",
+          "Admit"
+        ]
+      }
+    },
+    {
+      "id": "技术讨论-09",
+      "task_type": "技术讨论",
+      "capability_family": "deletion representation",
+      "subject": "tombstone",
+      "state": "installed then superseded; aspect: deletion representation",
+      "invariant": "Later corrections are not hidden by older deletion sequences",
+      "observable": "deletion representation: examine delete production facts",
+      "primary_mechanism": "delete_removal",
+      "extension_seam_id": "delete",
+      "workflow_ids": [
+        "delete"
+      ],
+      "source_anchors": [
+        "internal/engine/delete.go",
+        "internal/engine/ingest.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/delete.go",
+          "internal/engine/ingest.go"
+        ],
+        "functions": [
+          "Delete",
+          "hidden"
+        ]
+      }
+    },
+    {
+      "id": "技术讨论-10",
+      "task_type": "技术讨论",
+      "capability_family": "timestamp identity collisions",
+      "subject": "labelset",
+      "state": "canonical identity; aspect: timestamp identity collisions",
+      "invariant": "Presence differs in identity while absent values compare as empty",
+      "observable": "timestamp identity collisions: examine discovery production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "labels",
+      "workflow_ids": [
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/model/validate.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/model/validate.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "SeriesID",
+          "Matches"
+        ]
+      }
+    },
+    {
+      "id": "技术讨论-11",
+      "task_type": "技术讨论",
+      "capability_family": "aggregate numerical stability",
+      "subject": "series",
+      "state": "head and sealed; aspect: aggregate numerical stability",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "aggregate numerical stability: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "技术讨论-12",
+      "task_type": "技术讨论",
+      "capability_family": "distributed placement boundary",
+      "subject": "series",
+      "state": "head and sealed; aspect: distributed placement boundary",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "distributed placement boundary: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "技术讨论-13",
+      "task_type": "技术讨论",
+      "capability_family": "negative time support",
+      "subject": "series",
+      "state": "head and sealed; aspect: negative time support",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "negative time support: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "技术讨论-14",
+      "task_type": "技术讨论",
+      "capability_family": "format compatibility policy",
+      "subject": "volume",
+      "state": "opened and snapshotted; aspect: format compatibility policy",
+      "invariant": "Signed temporal keys and storage commits agree across restart",
+      "observable": "format compatibility policy: examine ingest, range, backup production facts",
+      "primary_mechanism": "recovery_rollback",
+      "extension_seam_id": "volume",
+      "workflow_ids": [
+        "ingest",
+        "range",
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/db.go",
+        "internal/volume/keys.go",
+        "internal/engine/scan.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/db.go",
+          "internal/volume/keys.go",
+          "internal/engine/scan.go"
+        ],
+        "functions": [
+          "Open",
+          "PointKey",
+          "scan"
+        ]
+      }
+    },
+    {
+      "id": "技术讨论-15",
+      "task_type": "技术讨论",
+      "capability_family": "backup retention coupling",
+      "subject": "retention",
+      "state": "monotonic floor; aspect: backup retention coupling",
+      "invariant": "Expired timestamps cannot be reintroduced",
+      "observable": "backup retention coupling: examine retention production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "retention",
+      "workflow_ids": [
+        "retention"
+      ],
+      "source_anchors": [
+        "internal/policy/admit.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/policy/admit.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "RetentionFloor",
+          "Retain"
+        ]
+      }
+    },
+    {
+      "id": "问题排查与诊断-01",
+      "task_type": "问题排查与诊断",
+      "capability_family": "missing negative-time windows",
+      "subject": "window",
+      "state": "origin aligned; aspect: missing negative-time windows",
+      "invariant": "Group windows preserve observation weighting and half-open bounds",
+      "observable": "missing negative-time windows: examine windows production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "windows",
+      "workflow_ids": [
+        "windows"
+      ],
+      "source_anchors": [
+        "internal/window/reduce.go",
+        "internal/engine/query.go",
+        "internal/window/bucket.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/reduce.go",
+          "internal/engine/query.go",
+          "internal/window/bucket.go"
+        ],
+        "functions": [
+          "Aggregate",
+          "Bucket"
+        ]
+      }
+    },
+    {
+      "id": "问题排查与诊断-02",
+      "task_type": "问题排查与诊断",
+      "capability_family": "physical space after deletion",
+      "subject": "tombstone",
+      "state": "installed then superseded; aspect: physical space after deletion",
+      "invariant": "Later corrections are not hidden by older deletion sequences",
+      "observable": "physical space after deletion: examine delete production facts",
+      "primary_mechanism": "delete_removal",
+      "extension_seam_id": "delete",
+      "workflow_ids": [
+        "delete"
+      ],
+      "source_anchors": [
+        "internal/engine/delete.go",
+        "internal/engine/ingest.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/delete.go",
+          "internal/engine/ingest.go"
+        ],
+        "functions": [
+          "Delete",
+          "hidden"
+        ]
+      }
+    },
+    {
+      "id": "问题排查与诊断-03",
+      "task_type": "问题排查与诊断",
+      "capability_family": "stale rollup observations",
+      "subject": "rollup",
+      "state": "fresh or stale; aspect: stale rollup observations",
+      "invariant": "Stored aggregate is paired with its namespace source sequence",
+      "observable": "stale rollup observations: examine materialize, freshness production facts",
+      "primary_mechanism": "lineage",
+      "extension_seam_id": "rollup",
+      "workflow_ids": [
+        "materialize",
+        "freshness"
+      ],
+      "source_anchors": [
+        "internal/engine/rollup.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/rollup.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Materialize",
+          "Rollup",
+          "aggregate"
+        ]
+      }
+    },
+    {
+      "id": "问题排查与诊断-04",
+      "task_type": "问题排查与诊断",
+      "capability_family": "late admission rejection",
+      "subject": "sample",
+      "state": "atomic admission; aspect: late admission rejection",
+      "invariant": "Timestamp corrections resolve by commit sequence",
+      "observable": "late admission rejection: examine ingest production facts",
+      "primary_mechanism": "batch_transaction",
+      "extension_seam_id": "write",
+      "workflow_ids": [
+        "ingest"
+      ],
+      "source_anchors": [
+        "internal/engine/ingest.go",
+        "internal/policy/admit.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/ingest.go",
+          "internal/policy/admit.go"
+        ],
+        "functions": [
+          "Write",
+          "Admit"
+        ]
+      }
+    },
+    {
+      "id": "问题排查与诊断-05",
+      "task_type": "问题排查与诊断",
+      "capability_family": "counter reset discontinuity",
+      "subject": "counter",
+      "state": "reset and gap; aspect: counter reset discontinuity",
+      "invariant": "Counter changes are resolved per series before grouping",
+      "observable": "counter reset discontinuity: examine counters production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "rate",
+      "workflow_ids": [
+        "counters"
+      ],
+      "source_anchors": [
+        "internal/window/rate.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/rate.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Rates",
+          "Aggregate"
+        ]
+      }
+    },
+    {
+      "id": "问题排查与诊断-06",
+      "task_type": "问题排查与诊断",
+      "capability_family": "series discovery after purge",
+      "subject": "retention",
+      "state": "monotonic floor; aspect: series discovery after purge",
+      "invariant": "Expired timestamps cannot be reintroduced",
+      "observable": "series discovery after purge: examine retention production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "retention",
+      "workflow_ids": [
+        "retention"
+      ],
+      "source_anchors": [
+        "internal/policy/admit.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/policy/admit.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "RetentionFloor",
+          "Retain"
+        ]
+      }
+    },
+    {
+      "id": "问题排查与诊断-07",
+      "task_type": "问题排查与诊断",
+      "capability_family": "block scan amplification",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: block scan amplification",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "block scan amplification: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "问题排查与诊断-08",
+      "task_type": "问题排查与诊断",
+      "capability_family": "range truncation evidence",
+      "subject": "plan",
+      "state": "candidate and visible; aspect: range truncation evidence",
+      "invariant": "Physical work and logical result cardinality remain distinguishable",
+      "observable": "range truncation evidence: examine explain, range production facts",
+      "primary_mechanism": "capacity",
+      "extension_seam_id": "plan",
+      "workflow_ids": [
+        "explain",
+        "range"
+      ],
+      "source_anchors": [
+        "internal/engine/query.go",
+        "internal/engine/scan.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/query.go",
+          "internal/engine/scan.go"
+        ],
+        "functions": [
+          "Explain",
+          "scan"
+        ]
+      }
+    },
+    {
+      "id": "问题排查与诊断-09",
+      "task_type": "问题排查与诊断",
+      "capability_family": "backup visibility timing",
+      "subject": "image",
+      "state": "exported and restored; aspect: backup visibility timing",
+      "invariant": "Restored image represents the advertised committed database state",
+      "observable": "backup visibility timing: examine backup production facts",
+      "primary_mechanism": "export_freeze",
+      "extension_seam_id": "backup",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/backup.go",
+        "internal/wire/image.go",
+        "cmd/ridgeline/main.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/backup.go",
+          "internal/wire/image.go",
+          "cmd/ridgeline/main.go"
+        ],
+        "functions": [
+          "Snapshot",
+          "serveImage",
+          "run"
+        ]
+      }
+    },
+    {
+      "id": "问题排查与诊断-10",
+      "task_type": "问题排查与诊断",
+      "capability_family": "read-only ingestion behavior",
+      "subject": "namespace",
+      "state": "writable and read-only; aspect: read-only ingestion behavior",
+      "invariant": "Read-only state changes admission without destroying readable data",
+      "observable": "read-only ingestion behavior: examine namespace, ingest production facts",
+      "primary_mechanism": "state_machine",
+      "extension_seam_id": "namespace",
+      "workflow_ids": [
+        "namespace",
+        "ingest"
+      ],
+      "source_anchors": [
+        "internal/engine/engine.go",
+        "internal/policy/admit.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/engine.go",
+          "internal/policy/admit.go"
+        ],
+        "functions": [
+          "ReadOnly",
+          "Admit"
+        ]
+      }
+    },
+    {
+      "id": "问题排查与诊断-11",
+      "task_type": "问题排查与诊断",
+      "capability_family": "retention cutoff change",
+      "subject": "retention",
+      "state": "monotonic floor; aspect: retention cutoff change",
+      "invariant": "Expired timestamps cannot be reintroduced",
+      "observable": "retention cutoff change: examine retention production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "retention",
+      "workflow_ids": [
+        "retention"
+      ],
+      "source_anchors": [
+        "internal/policy/admit.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/policy/admit.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "RetentionFloor",
+          "Retain"
+        ]
+      }
+    },
+    {
+      "id": "问题排查与诊断-12",
+      "task_type": "问题排查与诊断",
+      "capability_family": "selector absent-label effects",
+      "subject": "labelset",
+      "state": "canonical identity; aspect: selector absent-label effects",
+      "invariant": "Presence differs in identity while absent values compare as empty",
+      "observable": "selector absent-label effects: examine discovery production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "labels",
+      "workflow_ids": [
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/model/validate.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/model/validate.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "SeriesID",
+          "Matches"
+        ]
+      }
+    },
+    {
+      "id": "问题排查与诊断-13",
+      "task_type": "问题排查与诊断",
+      "capability_family": "duplicate correction evidence",
+      "subject": "sample",
+      "state": "atomic admission; aspect: duplicate correction evidence",
+      "invariant": "Timestamp corrections resolve by commit sequence",
+      "observable": "duplicate correction evidence: examine ingest production facts",
+      "primary_mechanism": "batch_transaction",
+      "extension_seam_id": "write",
+      "workflow_ids": [
+        "ingest"
+      ],
+      "source_anchors": [
+        "internal/engine/ingest.go",
+        "internal/policy/admit.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/ingest.go",
+          "internal/policy/admit.go"
+        ],
+        "functions": [
+          "Write",
+          "Admit"
+        ]
+      }
+    },
+    {
+      "id": "问题排查与诊断-14",
+      "task_type": "问题排查与诊断",
+      "capability_family": "query point quota rejection",
+      "subject": "series",
+      "state": "head and sealed; aspect: query point quota rejection",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "query point quota rejection: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "问题排查与诊断-15",
+      "task_type": "问题排查与诊断",
+      "capability_family": "restore source lineage",
+      "subject": "image",
+      "state": "exported and restored; aspect: restore source lineage",
+      "invariant": "Restored image represents the advertised committed database state",
+      "observable": "restore source lineage: examine backup production facts",
+      "primary_mechanism": "export_freeze",
+      "extension_seam_id": "backup",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/backup.go",
+        "internal/wire/image.go",
+        "cmd/ridgeline/main.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/backup.go",
+          "internal/wire/image.go",
+          "cmd/ridgeline/main.go"
+        ],
+        "functions": [
+          "Snapshot",
+          "serveImage",
+          "run"
+        ]
+      }
+    },
+    {
+      "id": "部署运维-01",
+      "task_type": "部署运维",
+      "capability_family": "restore rehearsal",
+      "subject": "image",
+      "state": "exported and restored; aspect: restore rehearsal",
+      "invariant": "Restored image represents the advertised committed database state",
+      "observable": "restore rehearsal: examine backup production facts",
+      "primary_mechanism": "export_freeze",
+      "extension_seam_id": "backup",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/backup.go",
+        "internal/wire/image.go",
+        "cmd/ridgeline/main.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/backup.go",
+          "internal/wire/image.go",
+          "cmd/ridgeline/main.go"
+        ],
+        "functions": [
+          "Snapshot",
+          "serveImage",
+          "run"
+        ]
+      }
+    },
+    {
+      "id": "部署运维-02",
+      "task_type": "部署运维",
+      "capability_family": "read-only rolling replacement",
+      "subject": "image",
+      "state": "exported and restored; aspect: read-only rolling replacement",
+      "invariant": "Restored image represents the advertised committed database state",
+      "observable": "read-only rolling replacement: examine backup production facts",
+      "primary_mechanism": "export_freeze",
+      "extension_seam_id": "backup",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/backup.go",
+        "internal/wire/image.go",
+        "cmd/ridgeline/main.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/backup.go",
+          "internal/wire/image.go",
+          "cmd/ridgeline/main.go"
+        ],
+        "functions": [
+          "Snapshot",
+          "serveImage",
+          "run"
+        ]
+      }
+    },
+    {
+      "id": "部署运维-03",
+      "task_type": "部署运维",
+      "capability_family": "bounded disk maintenance",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: bounded disk maintenance",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "bounded disk maintenance: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "部署运维-04",
+      "task_type": "部署运维",
+      "capability_family": "server shutdown under load",
+      "subject": "image",
+      "state": "exported and restored; aspect: server shutdown under load",
+      "invariant": "Restored image represents the advertised committed database state",
+      "observable": "server shutdown under load: examine backup production facts",
+      "primary_mechanism": "export_freeze",
+      "extension_seam_id": "backup",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/backup.go",
+        "internal/wire/image.go",
+        "cmd/ridgeline/main.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/backup.go",
+          "internal/wire/image.go",
+          "cmd/ridgeline/main.go"
+        ],
+        "functions": [
+          "Snapshot",
+          "serveImage",
+          "run"
+        ]
+      }
+    },
+    {
+      "id": "部署运维-05",
+      "task_type": "部署运维",
+      "capability_family": "backup destination cycling",
+      "subject": "image",
+      "state": "exported and restored; aspect: backup destination cycling",
+      "invariant": "Restored image represents the advertised committed database state",
+      "observable": "backup destination cycling: examine backup production facts",
+      "primary_mechanism": "export_freeze",
+      "extension_seam_id": "backup",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/backup.go",
+        "internal/wire/image.go",
+        "cmd/ridgeline/main.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/backup.go",
+          "internal/wire/image.go",
+          "cmd/ridgeline/main.go"
+        ],
+        "functions": [
+          "Snapshot",
+          "serveImage",
+          "run"
+        ]
+      }
+    },
+    {
+      "id": "部署运维-06",
+      "task_type": "部署运维",
+      "capability_family": "namespace readiness verifications",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: namespace readiness verifications",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "namespace readiness verifications: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "部署运维-07",
+      "task_type": "部署运维",
+      "capability_family": "local dual-instance cutover",
+      "subject": "image",
+      "state": "exported and restored; aspect: local dual-instance cutover",
+      "invariant": "Restored image represents the advertised committed database state",
+      "observable": "local dual-instance cutover: examine backup production facts",
+      "primary_mechanism": "export_freeze",
+      "extension_seam_id": "backup",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/backup.go",
+        "internal/wire/image.go",
+        "cmd/ridgeline/main.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/backup.go",
+          "internal/wire/image.go",
+          "cmd/ridgeline/main.go"
+        ],
+        "functions": [
+          "Snapshot",
+          "serveImage",
+          "run"
+        ]
+      }
+    },
+    {
+      "id": "部署运维-08",
+      "task_type": "部署运维",
+      "capability_family": "database permission isolation",
+      "subject": "image",
+      "state": "exported and restored; aspect: database permission isolation",
+      "invariant": "Restored image represents the advertised committed database state",
+      "observable": "database permission isolation: examine backup production facts",
+      "primary_mechanism": "export_freeze",
+      "extension_seam_id": "backup",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/backup.go",
+        "internal/wire/image.go",
+        "cmd/ridgeline/main.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/backup.go",
+          "internal/wire/image.go",
+          "cmd/ridgeline/main.go"
+        ],
+        "functions": [
+          "Snapshot",
+          "serveImage",
+          "run"
+        ]
+      }
+    },
+    {
+      "id": "部署运维-09",
+      "task_type": "部署运维",
+      "capability_family": "memory constrained aggregate",
+      "subject": "series",
+      "state": "head and sealed; aspect: memory constrained aggregate",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "memory constrained aggregate: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "部署运维-10",
+      "task_type": "部署运维",
+      "capability_family": "retention floor rollout",
+      "subject": "retention",
+      "state": "monotonic floor; aspect: retention floor rollout",
+      "invariant": "Expired timestamps cannot be reintroduced",
+      "observable": "retention floor rollout: examine retention production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "retention",
+      "workflow_ids": [
+        "retention"
+      ],
+      "source_anchors": [
+        "internal/policy/admit.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/policy/admit.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "RetentionFloor",
+          "Retain"
+        ]
+      }
+    },
+    {
+      "id": "部署运维-11",
+      "task_type": "部署运维",
+      "capability_family": "cold snapshot promotion",
+      "subject": "image",
+      "state": "exported and restored; aspect: cold snapshot promotion",
+      "invariant": "Restored image represents the advertised committed database state",
+      "observable": "cold snapshot promotion: examine backup production facts",
+      "primary_mechanism": "export_freeze",
+      "extension_seam_id": "backup",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/backup.go",
+        "internal/wire/image.go",
+        "cmd/ridgeline/main.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/backup.go",
+          "internal/wire/image.go",
+          "cmd/ridgeline/main.go"
+        ],
+        "functions": [
+          "Snapshot",
+          "serveImage",
+          "run"
+        ]
+      }
+    },
+    {
+      "id": "部署运维-12",
+      "task_type": "部署运维",
+      "capability_family": "volume exhaustion response",
+      "subject": "series",
+      "state": "head and sealed; aspect: volume exhaustion response",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "volume exhaustion response: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "部署运维-13",
+      "task_type": "部署运维",
+      "capability_family": "startup lock contention",
+      "subject": "volume",
+      "state": "opened and snapshotted; aspect: startup lock contention",
+      "invariant": "Signed temporal keys and storage commits agree across restart",
+      "observable": "startup lock contention: examine ingest, range, backup production facts",
+      "primary_mechanism": "recovery_rollback",
+      "extension_seam_id": "volume",
+      "workflow_ids": [
+        "ingest",
+        "range",
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/db.go",
+        "internal/volume/keys.go",
+        "internal/engine/scan.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/db.go",
+          "internal/volume/keys.go",
+          "internal/engine/scan.go"
+        ],
+        "functions": [
+          "Open",
+          "PointKey",
+          "scan"
+        ]
+      }
+    },
+    {
+      "id": "部署运维-14",
+      "task_type": "部署运维",
+      "capability_family": "artifact verificationsum handoff",
+      "subject": "series",
+      "state": "head and sealed; aspect: artifact verificationsum handoff",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "artifact verificationsum handoff: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "部署运维-15",
+      "task_type": "部署运维",
+      "capability_family": "failure budget recovery drill",
+      "subject": "plan",
+      "state": "candidate and visible; aspect: failure budget recovery drill",
+      "invariant": "Physical work and logical result cardinality remain distinguishable",
+      "observable": "failure budget recovery drill: examine explain, range production facts",
+      "primary_mechanism": "capacity",
+      "extension_seam_id": "plan",
+      "workflow_ids": [
+        "explain",
+        "range"
+      ],
+      "source_anchors": [
+        "internal/engine/query.go",
+        "internal/engine/scan.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/query.go",
+          "internal/engine/scan.go"
+        ],
+        "functions": [
+          "Explain",
+          "scan"
+        ]
+      }
+    },
+    {
+      "id": "泛Agent需求-01",
+      "task_type": "泛Agent需求",
+      "capability_family": "counter reset identity matching",
+      "subject": "counter",
+      "state": "reset and gap; aspect: counter reset identity matching",
+      "invariant": "Counter changes are resolved per series before grouping",
+      "observable": "counter reset identity matching: examine counters production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "rate",
+      "workflow_ids": [
+        "counters"
+      ],
+      "source_anchors": [
+        "internal/window/rate.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/rate.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Rates",
+          "Aggregate"
+        ]
+      }
+    },
+    {
+      "id": "泛Agent需求-02",
+      "task_type": "泛Agent需求",
+      "capability_family": "retention loss census",
+      "subject": "retention",
+      "state": "monotonic floor; aspect: retention loss census",
+      "invariant": "Expired timestamps cannot be reintroduced",
+      "observable": "retention loss census: examine retention production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "retention",
+      "workflow_ids": [
+        "retention"
+      ],
+      "source_anchors": [
+        "internal/policy/admit.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/policy/admit.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "RetentionFloor",
+          "Retain"
+        ]
+      }
+    },
+    {
+      "id": "泛Agent需求-03",
+      "task_type": "泛Agent需求",
+      "capability_family": "label identity identity matching",
+      "subject": "labelset",
+      "state": "canonical identity; aspect: label identity identity matching",
+      "invariant": "Presence differs in identity while absent values compare as empty",
+      "observable": "label identity identity matching: examine discovery production facts",
+      "primary_mechanism": "policy_rules",
+      "extension_seam_id": "labels",
+      "workflow_ids": [
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/model/validate.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/model/validate.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "SeriesID",
+          "Matches"
+        ]
+      }
+    },
+    {
+      "id": "泛Agent需求-04",
+      "task_type": "泛Agent需求",
+      "capability_family": "downsample conservation verification",
+      "subject": "rollup",
+      "state": "fresh or stale; aspect: downsample conservation verification",
+      "invariant": "Stored aggregate is paired with its namespace source sequence",
+      "observable": "downsample conservation verification: examine materialize, freshness production facts",
+      "primary_mechanism": "lineage",
+      "extension_seam_id": "rollup",
+      "workflow_ids": [
+        "materialize",
+        "freshness"
+      ],
+      "source_anchors": [
+        "internal/engine/rollup.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/rollup.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Materialize",
+          "Rollup",
+          "aggregate"
+        ]
+      }
+    },
+    {
+      "id": "泛Agent需求-05",
+      "task_type": "泛Agent需求",
+      "capability_family": "backup recovery eligibility",
+      "subject": "image",
+      "state": "exported and restored; aspect: backup recovery eligibility",
+      "invariant": "Restored image represents the advertised committed database state",
+      "observable": "backup recovery eligibility: examine backup production facts",
+      "primary_mechanism": "export_freeze",
+      "extension_seam_id": "backup",
+      "workflow_ids": [
+        "backup"
+      ],
+      "source_anchors": [
+        "internal/volume/backup.go",
+        "internal/wire/image.go",
+        "cmd/ridgeline/main.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/volume/backup.go",
+          "internal/wire/image.go",
+          "cmd/ridgeline/main.go"
+        ],
+        "functions": [
+          "Snapshot",
+          "serveImage",
+          "run"
+        ]
+      }
+    },
+    {
+      "id": "泛Agent需求-06",
+      "task_type": "泛Agent需求",
+      "capability_family": "deleted point lineage",
+      "subject": "tombstone",
+      "state": "installed then superseded; aspect: deleted point lineage",
+      "invariant": "Later corrections are not hidden by older deletion sequences",
+      "observable": "deleted point lineage: examine delete production facts",
+      "primary_mechanism": "delete_removal",
+      "extension_seam_id": "delete",
+      "workflow_ids": [
+        "delete"
+      ],
+      "source_anchors": [
+        "internal/engine/delete.go",
+        "internal/engine/ingest.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/delete.go",
+          "internal/engine/ingest.go"
+        ],
+        "functions": [
+          "Delete",
+          "hidden"
+        ]
+      }
+    },
+    {
+      "id": "泛Agent需求-07",
+      "task_type": "泛Agent需求",
+      "capability_family": "out-of-order arrival analysis",
+      "subject": "sample",
+      "state": "atomic admission; aspect: out-of-order arrival analysis",
+      "invariant": "Timestamp corrections resolve by commit sequence",
+      "observable": "out-of-order arrival analysis: examine ingest production facts",
+      "primary_mechanism": "batch_transaction",
+      "extension_seam_id": "write",
+      "workflow_ids": [
+        "ingest"
+      ],
+      "source_anchors": [
+        "internal/engine/ingest.go",
+        "internal/policy/admit.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/ingest.go",
+          "internal/policy/admit.go"
+        ],
+        "functions": [
+          "Write",
+          "Admit"
+        ]
+      }
+    },
+    {
+      "id": "泛Agent需求-08",
+      "task_type": "泛Agent需求",
+      "capability_family": "block placement census",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: block placement census",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "block placement census: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "泛Agent需求-09",
+      "task_type": "泛Agent需求",
+      "capability_family": "query limit coverage reconstruction",
+      "subject": "plan",
+      "state": "candidate and visible; aspect: query limit coverage reconstruction",
+      "invariant": "Physical work and logical result cardinality remain distinguishable",
+      "observable": "query limit coverage reconstruction: examine explain, range production facts",
+      "primary_mechanism": "capacity",
+      "extension_seam_id": "plan",
+      "workflow_ids": [
+        "explain",
+        "range"
+      ],
+      "source_anchors": [
+        "internal/engine/query.go",
+        "internal/engine/scan.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/query.go",
+          "internal/engine/scan.go"
+        ],
+        "functions": [
+          "Explain",
+          "scan"
+        ]
+      }
+    },
+    {
+      "id": "泛Agent需求-10",
+      "task_type": "泛Agent需求",
+      "capability_family": "rollup freshness matrix",
+      "subject": "rollup",
+      "state": "fresh or stale; aspect: rollup freshness matrix",
+      "invariant": "Stored aggregate is paired with its namespace source sequence",
+      "observable": "rollup freshness matrix: examine materialize, freshness production facts",
+      "primary_mechanism": "lineage",
+      "extension_seam_id": "rollup",
+      "workflow_ids": [
+        "materialize",
+        "freshness"
+      ],
+      "source_anchors": [
+        "internal/engine/rollup.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/rollup.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Materialize",
+          "Rollup",
+          "aggregate"
+        ]
+      }
+    },
+    {
+      "id": "泛Agent需求-11",
+      "task_type": "泛Agent需求",
+      "capability_family": "negative epoch time normalization",
+      "subject": "series",
+      "state": "head and sealed; aspect: negative epoch time normalization",
+      "invariant": "Visible points resolve physical duplicates and selectors",
+      "observable": "negative epoch time normalization: examine range, discovery production facts",
+      "primary_mechanism": "snapshot_consistency",
+      "extension_seam_id": "scan",
+      "workflow_ids": [
+        "range",
+        "discovery"
+      ],
+      "source_anchors": [
+        "internal/engine/scan.go",
+        "internal/select/match.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/engine/scan.go",
+          "internal/select/match.go"
+        ],
+        "functions": [
+          "scan",
+          "Compile"
+        ]
+      }
+    },
+    {
+      "id": "泛Agent需求-12",
+      "task_type": "泛Agent需求",
+      "capability_family": "group weighting audit",
+      "subject": "window",
+      "state": "origin aligned; aspect: group weighting audit",
+      "invariant": "Group windows preserve observation weighting and half-open bounds",
+      "observable": "group weighting audit: examine windows production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "windows",
+      "workflow_ids": [
+        "windows"
+      ],
+      "source_anchors": [
+        "internal/window/reduce.go",
+        "internal/engine/query.go",
+        "internal/window/bucket.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/reduce.go",
+          "internal/engine/query.go",
+          "internal/window/bucket.go"
+        ],
+        "functions": [
+          "Aggregate",
+          "Bucket"
+        ]
+      }
+    },
+    {
+      "id": "泛Agent需求-13",
+      "task_type": "泛Agent需求",
+      "capability_family": "counter gap evidence",
+      "subject": "counter",
+      "state": "reset and gap; aspect: counter gap evidence",
+      "invariant": "Counter changes are resolved per series before grouping",
+      "observable": "counter gap evidence: examine counters production facts",
+      "primary_mechanism": "time_semantics",
+      "extension_seam_id": "rate",
+      "workflow_ids": [
+        "counters"
+      ],
+      "source_anchors": [
+        "internal/window/rate.go",
+        "internal/engine/query.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/window/rate.go",
+          "internal/engine/query.go"
+        ],
+        "functions": [
+          "Rates",
+          "Aggregate"
+        ]
+      }
+    },
+    {
+      "id": "泛Agent需求-14",
+      "task_type": "泛Agent需求",
+      "capability_family": "namespace configuration drift",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: namespace configuration drift",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "namespace configuration drift: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    },
+    {
+      "id": "泛Agent需求-15",
+      "task_type": "泛Agent需求",
+      "capability_family": "compression allocation analysis",
+      "subject": "block",
+      "state": "compressed and rewritten; aspect: compression allocation analysis",
+      "invariant": "Physical changes preserve sample sequence and logical values",
+      "observable": "compression allocation analysis: examine seal, compact production facts",
+      "primary_mechanism": "resource_lifecycle",
+      "extension_seam_id": "blocks",
+      "workflow_ids": [
+        "seal",
+        "compact"
+      ],
+      "source_anchors": [
+        "internal/chunk/codec.go",
+        "internal/engine/seal.go",
+        "internal/engine/compact.go"
+      ],
+      "existing_touch_points": {
+        "files": [
+          "internal/chunk/codec.go",
+          "internal/engine/seal.go",
+          "internal/engine/compact.go"
+        ],
+        "functions": [
+          "Decode",
+          "Seal",
+          "Compact"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+/build/
+/var/
+*.db
+*.db.lock
+__pycache__/

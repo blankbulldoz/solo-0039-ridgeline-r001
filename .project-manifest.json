@@ -1,0 +1,339 @@
+{
+  "project_shape": "backend",
+  "modules": [
+    {
+      "id": "model",
+      "path": "internal/model",
+      "responsibility": "Identity, sample schema and validation"
+    },
+    {
+      "id": "volume",
+      "path": "internal/volume",
+      "responsibility": "Atomic bbolt publication and backup images"
+    },
+    {
+      "id": "chunk",
+      "path": "internal/chunk",
+      "responsibility": "Compressed time blocks and payload verification"
+    },
+    {
+      "id": "select",
+      "path": "internal/select",
+      "responsibility": "Canonical series selection and matcher semantics"
+    },
+    {
+      "id": "window",
+      "path": "internal/window",
+      "responsibility": "Origin aligned reductions and reset-aware counter rates"
+    },
+    {
+      "id": "policy",
+      "path": "internal/policy",
+      "responsibility": "Event time admission and monotonic retention floor"
+    },
+    {
+      "id": "engine",
+      "path": "internal/engine",
+      "responsibility": "Transaction coordination and query/maintenance execution"
+    },
+    {
+      "id": "wire",
+      "path": "internal/wire",
+      "responsibility": "Bounded strict HTTP contracts"
+    },
+    {
+      "id": "server",
+      "path": "cmd/ridgeline",
+      "responsibility": "Process ownership and graceful shutdown"
+    }
+  ],
+  "workflows": [
+    {
+      "id": "namespace",
+      "name": "Namespace read-only lifecycle",
+      "entry": "POST /spaces; PUT /spaces/spindle/mode",
+      "success": "Read-only transition preserves readers and rejects ingestion",
+      "failure": "conflicting creation or write",
+      "verification": "python3 examples/walkthrough.py --workflow namespace",
+      "steps": [
+        "validate the public request",
+        "derive domain facts inside one transaction",
+        "publish result or typed failure"
+      ],
+      "module_ids": [
+        "wire",
+        "engine",
+        "model",
+        "volume"
+      ]
+    },
+    {
+      "id": "ingest",
+      "name": "Atomic point ingestion and correction",
+      "entry": "POST /spaces/spindle/points",
+      "success": "Newest committed value wins per timestamp",
+      "failure": "future point rejects the complete write",
+      "verification": "python3 examples/walkthrough.py --workflow ingest",
+      "steps": [
+        "validate the public request",
+        "derive domain facts inside one transaction",
+        "publish result or typed failure"
+      ],
+      "module_ids": [
+        "wire",
+        "engine",
+        "model",
+        "policy",
+        "volume"
+      ]
+    },
+    {
+      "id": "discovery",
+      "name": "Matcher based series discovery",
+      "entry": "POST /spaces/spindle/series",
+      "success": "Canonical identity preserves absent versus present-empty labels",
+      "failure": "invalid matcher",
+      "verification": "python3 examples/walkthrough.py --workflow discovery",
+      "steps": [
+        "validate the public request",
+        "derive domain facts inside one transaction",
+        "publish result or typed failure"
+      ],
+      "module_ids": [
+        "wire",
+        "engine",
+        "select",
+        "volume"
+      ]
+    },
+    {
+      "id": "range",
+      "name": "Merge raw measurements",
+      "entry": "POST /spaces/spindle/range",
+      "success": "Head and blocks expose one newest visible point per series-time",
+      "failure": "scan budget rejection",
+      "verification": "python3 examples/walkthrough.py --workflow range",
+      "steps": [
+        "validate the public request",
+        "derive domain facts inside one transaction",
+        "publish result or typed failure"
+      ],
+      "module_ids": [
+        "wire",
+        "engine",
+        "chunk",
+        "select",
+        "volume"
+      ]
+    },
+    {
+      "id": "windows",
+      "name": "Origin aligned grouped aggregation",
+      "entry": "POST /spaces/spindle/aggregate",
+      "success": "Negative timestamps land in the preceding bucket",
+      "failure": "invalid step or numeric overflow",
+      "verification": "python3 examples/walkthrough.py --workflow windows",
+      "steps": [
+        "validate the public request",
+        "derive domain facts inside one transaction",
+        "publish result or typed failure"
+      ],
+      "module_ids": [
+        "wire",
+        "engine",
+        "select",
+        "window",
+        "volume"
+      ]
+    },
+    {
+      "id": "counters",
+      "name": "Reset aware rates",
+      "entry": "POST /spaces/spindle/aggregate function=rate",
+      "success": "Reset increments and observed elapsed time determine group rate",
+      "failure": "negative counter sample",
+      "verification": "python3 examples/walkthrough.py --workflow counters",
+      "steps": [
+        "validate the public request",
+        "derive domain facts inside one transaction",
+        "publish result or typed failure"
+      ],
+      "module_ids": [
+        "wire",
+        "engine",
+        "window",
+        "select",
+        "volume"
+      ]
+    },
+    {
+      "id": "seal",
+      "name": "Seal mutable heads",
+      "entry": "POST /spaces/spindle/seal",
+      "success": "Logical samples remain identical after physical movement",
+      "failure": "invalid stored block data",
+      "verification": "python3 examples/walkthrough.py --workflow seal",
+      "steps": [
+        "validate the public request",
+        "derive domain facts inside one transaction",
+        "publish result or typed failure"
+      ],
+      "module_ids": [
+        "wire",
+        "engine",
+        "chunk",
+        "volume"
+      ]
+    },
+    {
+      "id": "delete",
+      "name": "Sequence aware range deletion",
+      "entry": "POST /spaces/spindle/deletions",
+      "success": "Deletion hides old samples but later corrections can appear",
+      "failure": "read-only rejection",
+      "verification": "python3 examples/walkthrough.py --workflow delete",
+      "steps": [
+        "validate the public request",
+        "derive domain facts inside one transaction",
+        "publish result or typed failure"
+      ],
+      "module_ids": [
+        "wire",
+        "engine",
+        "select",
+        "volume"
+      ]
+    },
+    {
+      "id": "retention",
+      "name": "Advance irreversible time floor",
+      "entry": "POST /spaces/spindle/retention",
+      "success": "Expired timestamps cannot return after compaction",
+      "failure": "old sample admission conflict",
+      "verification": "python3 examples/walkthrough.py --workflow retention",
+      "steps": [
+        "validate the public request",
+        "derive domain facts inside one transaction",
+        "publish result or typed failure"
+      ],
+      "module_ids": [
+        "wire",
+        "engine",
+        "policy",
+        "chunk",
+        "volume"
+      ]
+    },
+    {
+      "id": "materialize",
+      "name": "Materialize window results",
+      "entry": "PUT /spaces/spindle/rollups/pulse",
+      "success": "Result and source-sequence provenance share one transaction",
+      "failure": "invalid query or read-only namespace",
+      "verification": "python3 examples/walkthrough.py --workflow materialize",
+      "steps": [
+        "validate the public request",
+        "derive domain facts inside one transaction",
+        "publish result or typed failure"
+      ],
+      "module_ids": [
+        "wire",
+        "engine",
+        "window",
+        "volume"
+      ]
+    },
+    {
+      "id": "freshness",
+      "name": "Inspect rollup freshness",
+      "entry": "GET /spaces/spindle/rollups/pulse",
+      "success": "Changed namespace is reported stale without rewriting old output",
+      "failure": "missing rollup",
+      "verification": "python3 examples/walkthrough.py --workflow freshness",
+      "steps": [
+        "validate the public request",
+        "derive domain facts inside one transaction",
+        "publish result or typed failure"
+      ],
+      "module_ids": [
+        "wire",
+        "engine",
+        "model",
+        "volume"
+      ]
+    },
+    {
+      "id": "compact",
+      "name": "Rewrite visible points",
+      "entry": "POST /spaces/spindle/compact",
+      "success": "Rewritten blocks preserve correction sequences",
+      "failure": "bounded scan capacity rejection",
+      "verification": "python3 examples/walkthrough.py --workflow compact",
+      "steps": [
+        "validate the public request",
+        "derive domain facts inside one transaction",
+        "publish result or typed failure"
+      ],
+      "module_ids": [
+        "wire",
+        "engine",
+        "chunk",
+        "volume"
+      ]
+    },
+    {
+      "id": "backup",
+      "name": "Export and restore database image",
+      "entry": "GET /image; restart RIDGE_DB",
+      "success": "Sequence, hash and restored contents agree",
+      "failure": "database already opened by another process",
+      "verification": "python3 examples/walkthrough.py --workflow backup",
+      "steps": [
+        "validate the public request",
+        "derive domain facts inside one transaction",
+        "publish result or typed failure"
+      ],
+      "module_ids": [
+        "wire",
+        "engine",
+        "volume",
+        "server"
+      ]
+    },
+    {
+      "id": "explain",
+      "name": "Explain physical scan candidates",
+      "entry": "POST /spaces/spindle/explain",
+      "success": "Candidate blocks and budget describe the same read transaction",
+      "failure": "invalid range",
+      "verification": "python3 examples/walkthrough.py --workflow explain",
+      "steps": [
+        "validate the public request",
+        "derive domain facts inside one transaction",
+        "publish result or typed failure"
+      ],
+      "module_ids": [
+        "wire",
+        "engine",
+        "select",
+        "volume"
+      ]
+    }
+  ],
+  "complexity": {
+    "mechanisms": [
+      "batch_transaction",
+      "time_semantics",
+      "snapshot_consistency",
+      "delete_removal",
+      "recovery_rollback",
+      "resource_lifecycle",
+      "capacity",
+      "policy_rules",
+      "versioning_audit",
+      "concurrency",
+      "lineage",
+      "state_machine"
+    ]
+  }
+}
